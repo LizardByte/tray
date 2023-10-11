@@ -145,7 +145,7 @@ void tray_update(struct tray *tray) {
   HICON icon,largeIcon;
   ExtractIconEx(tray->icon, 0, NULL, &icon, 1);
   if(tray->notification_icon != 0){
-    ExtractIconEx(tray->notification_icon, 0, &largeIcon, NULL, 1);
+    largeIcon = LoadImageA(NULL, tray->notification_icon, IMAGE_ICON, GetSystemMetrics(SM_CXICON) * 2, GetSystemMetrics(SM_CYICON) * 2, LR_LOADFROMFILE);
   } else {
     ExtractIconEx(tray->icon, 0, &largeIcon, NULL, 1);
   }
