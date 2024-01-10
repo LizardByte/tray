@@ -1,6 +1,7 @@
 #include "tray.h"
 #include <string.h>
 #include <stddef.h>
+#include <stdbool.h>
 #ifdef TRAY_AYATANA_APPINDICATOR
 #include <libayatana-appindicator/app-indicator.h>
 #elif TRAY_LEGACY_APPINDICATOR
@@ -12,6 +13,10 @@
 
 #include <libnotify/notify.h>
 #define TRAY_APPINDICATOR_ID "tray-id"
+
+static bool async_update_pending = false;
+static pthread_cond_t async_update_cv = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t async_update_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static AppIndicator *indicator = NULL;
 static int loop_result         = 0;
@@ -71,7 +76,9 @@ int tray_loop(int blocking) {
   return loop_result;
 }
 
-void tray_update(struct tray *tray) {
+static gboolean tray_update_internal(gpointer user_data) {
+  struct tray *tray = user_data;
+
   if(indicator != NULL && IS_APP_INDICATOR(indicator)){
     app_indicator_set_icon(indicator, tray->icon);
     // GTK is all about reference counting, so previous menu should be destroyed
@@ -92,13 +99,64 @@ void tray_update(struct tray *tray) {
       notify_notification_show(currentNotification, NULL);
     }
   }
+
+  // Unwait any pending tray_update() calls
+  pthread_mutex_lock(&async_update_mutex);
+  async_update_pending = false;
+  pthread_cond_broadcast(&async_update_cv);
+  pthread_mutex_unlock(&async_update_mutex);
+  return G_SOURCE_REMOVE;
 }
 
-void tray_exit(void) { 
+void tray_update(struct tray *tray) {
+  // Perform the tray update on the tray loop thread, but block
+  // in this thread to ensure none of the strings stored in the
+  // tray icon struct go out of scope before the callback runs.
+
+  if (g_main_context_is_owner(g_main_context_default())) {
+    // Invoke the callback directly if we're on the loop thread
+    tray_update_internal(tray);
+  }
+  else {
+    // If there's already an update pending, wait for it to complete
+    // and claim the next pending update slot.
+    pthread_mutex_lock(&async_update_mutex);
+    while (async_update_pending) {
+      pthread_cond_wait(&async_update_cv, &async_update_mutex);
+    }
+    async_update_pending = true;
+    pthread_mutex_unlock(&async_update_mutex);
+
+    // Queue the update callback to the tray thread
+    g_main_context_invoke(NULL, tray_update_internal, tray);
+
+    // Wait for the callback to run
+    pthread_mutex_lock(&async_update_mutex);
+    while (async_update_pending) {
+      pthread_cond_wait(&async_update_cv, &async_update_mutex);
+    }
+    pthread_mutex_unlock(&async_update_mutex);
+  }
+}
+
+static gboolean tray_exit_internal(gpointer user_data) {
   if(currentNotification != NULL && NOTIFY_IS_NOTIFICATION(currentNotification)){
     int v = notify_notification_close(currentNotification,NULL);
     if(v == TRUE)g_object_unref(G_OBJECT(currentNotification));
   }
   notify_uninit();
-  loop_result = -1; 
+  return G_SOURCE_REMOVE;
+}
+
+void tray_exit(void) {
+  // Wait for any pending callbacks to complete
+  pthread_mutex_lock(&async_update_mutex);
+  while (async_update_pending) {
+    pthread_cond_wait(&async_update_cv, &async_update_mutex);
+  }
+  pthread_mutex_unlock(&async_update_mutex);
+
+  // Perform cleanup on the main thread
+  loop_result = -1;
+  g_main_context_invoke(NULL, tray_exit_internal, NULL);
 }
