@@ -76,4 +76,3 @@ void tray_update(struct tray *tray) {
 void tray_exit(void) {
     [app terminate:app];
 }
-

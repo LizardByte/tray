@@ -21,14 +21,14 @@
 
 include(FindPackageHandleStandardArgs)
 
-PKG_CHECK_MODULES(APPINDICATOR ayatana-appindicator3-0.1)
-IF( APPINDICATOR_FOUND )
+pkg_check_modules(APPINDICATOR ayatana-appindicator3-0.1)
+if(APPINDICATOR_FOUND)
     SET(APPINDICATOR_AYATANA 1)
-ELSE()
-    PKG_CHECK_MODULES(APPINDICATOR appindicator3-0.1)
-    IF( APPINDICATOR_FOUND )
+else()
+    pkg_check_modules(APPINDICATOR appindicator3-0.1)
+    if(APPINDICATOR_FOUND)
         SET(APPINDICATOR_LEGACY 1)
-    ENDIF()
-ENDIF()
+    endif()
+endif()
 
 mark_as_advanced(APPINDICATOR_INCLUDE_DIR APPINDICATOR_LIBRARY)

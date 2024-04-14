@@ -1,77 +1,99 @@
 cmake_minimum_required(VERSION 3.13 FATAL_ERROR) # target_link_directories
 
-project(tray C)
+project(tray
+        LANGUAGES C
+        DESCRIPTION "A cross-platform system tray library")
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
+set(PROJECT_LICENSE "MIT")
 
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    message(STATUS "Setting build type to 'Release' as none was specified.")
+    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build." FORCE)
+endif()
+
+set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+
+# options
+option(BUILD_TESTS "Build tests" ON)
 
 # Generate 'compile_commands.json' for clang_complete
 set(CMAKE_COLOR_MAKEFILE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-
 find_package (PkgConfig REQUIRED)
 
-
-file(GLOB SRCS
-        ${CMAKE_CURRENT_LIST_DIR}/*.h
-        ${CMAKE_CURRENT_LIST_DIR}/*.ico
-        ${CMAKE_CURRENT_LIST_DIR}/*.png)
+file(GLOB TRAY_SOURCES
+        "${CMAKE_SOURCE_DIR}/src/*.h"
+        "${CMAKE_SOURCE_DIR}/icons/*.ico"
+        "${CMAKE_SOURCE_DIR}/icons/*.png")
 
 if(WIN32)
-	list(APPEND SRCS ${CMAKE_CURRENT_SOURCE_DIR}/tray_windows.c)
+    list(APPEND TRAY_SOURCES "${CMAKE_SOURCE_DIR}/src/tray_windows.c")
 else()
-	if(UNIX)
-		if(APPLE)
-			find_library(COCOA Cocoa REQUIRED)
-			list(APPEND SRCS ${CMAKE_CURRENT_SOURCE_DIR}/tray_darwin.m)
-		else()
-			find_package(APPINDICATOR REQUIRED)
-			find_package(LIBNOTIFY REQUIRED)
-			list(APPEND SRCS ${CMAKE_CURRENT_SOURCE_DIR}/tray_linux.c)
-		endif()
-	endif()
-endif()
-
-add_library(tray STATIC ${SRCS})
-set_property(TARGET tray PROPERTY C_STANDARD 99)
-if(WIN32)
-	target_compile_definitions(tray PRIVATE TRAY_WINAPI=1 WIN32_LEAN_AND_MEAN NOMINMAX)
-	if(MSVC)
-		target_compile_options(tray PRIVATE "/MT$<$<CONFIG:Debug>:d>")
-	endif()
-else()
-        if(UNIX)
-			if(APPLE)
-				target_compile_definitions(tray PRIVATE TRAY_APPKIT=1)
-				target_link_libraries(tray PRIVATE ${COCOA})
-            else()
-				target_compile_options(tray PRIVATE ${APPINDICATOR_CFLAGS})
-				target_link_directories(tray PRIVATE ${APPINDICATOR_LIBRARY_DIRS})
-				target_compile_definitions(tray PRIVATE TRAY_APPINDICATOR=1)
-				if(APPINDICATOR_AYATANA)
-					target_compile_definitions(tray PRIVATE TRAY_AYATANA_APPINDICATOR=1)
-				endif()
-				if(APPINDICATOR_LEGACY)
-					target_compile_definitions(tray PRIVATE TRAY_LEGACY_APPINDICATOR=1)
-				endif()
-				target_compile_definitions(tray PRIVATE TRAY_LIBNOTIFY=1)
-				target_link_libraries(tray PRIVATE ${APPINDICATOR_LIBRARIES} ${LIBNOTIFY_LIBRARIES})
-			endif()
+    if(UNIX)
+        if(APPLE)
+            find_library(COCOA Cocoa REQUIRED)
+            list(APPEND TRAY_SOURCES "${CMAKE_SOURCE_DIR}/src/tray_darwin.m")
+        else()
+            find_package(APPINDICATOR REQUIRED)
+            find_package(LibNotify REQUIRED)
+            list(APPEND TRAY_SOURCES "${CMAKE_SOURCE_DIR}/src/tray_linux.c")
         endif()
+    endif()
 endif()
 
-add_library(tray::tray ALIAS tray)
+add_library(${PROJECT_NAME} STATIC ${TRAY_SOURCES})
+set_property(TARGET ${PROJECT_NAME} PROPERTY C_STANDARD 99)
 
-add_executable(tray_example ${CMAKE_CURRENT_SOURCE_DIR}/example.c)
+if(WIN32)
+    list(APPEND TRAY_DEFINITIONS TRAY_WINAPI=1 WIN32_LEAN_AND_MEAN NOMINMAX)
+    if(MSVC)
+        list(APPEND TRAY_COMPILE_OPTIONS "/MT$<$<CONFIG:Debug>:d>")
+    endif()
+else()
+    if(UNIX)
+        if(APPLE)
+            list(APPEND TRAY_DEFINITIONS TRAY_APPKIT=1)
+            list(APPEND TRAY_EXTERNAL_LIBRARIES ${COCOA})
+        else()
+            list(APPEND TRAY_COMPILE_OPTIONS ${APPINDICATOR_CFLAGS})
+            list(APPEND TRAY_EXTERNAL_DIRECTORIES ${APPINDICATOR_LIBRARY_DIRS})
+            list(APPEND TRAY_DEFINITIONS TRAY_APPINDICATOR=1)
+            if(APPINDICATOR_AYATANA)
+                list(APPEND TRAY_DEFINITIONS TRAY_AYATANA_APPINDICATOR=1)
+            endif()
+            if(APPINDICATOR_LEGACY)
+                list(APPEND TRAY_DEFINITIONS TRAY_LEGACY_APPINDICATOR=1)
+            endif()
+            list(APPEND TRAY_LIBNOTIFY=1)
+            list(APPEND TRAY_EXTERNAL_LIBRARIES ${APPINDICATOR_LIBRARIES} ${LIBNOTIFY_LIBRARIES})
+
+            include_directories(SYSTEM ${APPINDICATOR_INCLUDE_DIRS} ${LIBNOTIFY_INCLUDE_DIRS})
+            link_directories(${APPINDICATOR_LIBRARY_DIRS} ${LIBNOTIFY_LIBRARY_DIRS})
+        endif()
+    endif()
+endif()
+
+add_library(tray::tray ALIAS ${PROJECT_NAME})
+
+add_executable(tray_example "${CMAKE_SOURCE_DIR}/src/example.c")
 target_link_libraries(tray_example tray::tray)
 
-configure_file(${CMAKE_CURRENT_LIST_DIR}/icon.ico ${CMAKE_BINARY_DIR}/icon.ico COPYONLY)
-configure_file(${CMAKE_CURRENT_LIST_DIR}/icon.png ${CMAKE_BINARY_DIR}/icon.png COPYONLY)
+configure_file("${CMAKE_SOURCE_DIR}/icons/icon.ico" "${CMAKE_BINARY_DIR}/icon.ico" COPYONLY)
+configure_file("${CMAKE_SOURCE_DIR}/icons/icon.png" "${CMAKE_BINARY_DIR}/icon.png" COPYONLY)
 
 INSTALL(TARGETS tray tray DESTINATION lib)
 
 IF(NOT WIN32)
-	INSTALL(FILES tray.h DESTINATION include)
+    INSTALL(FILES tray.h DESTINATION include)
 ENDIF()
 
+target_compile_definitions(${PROJECT_NAME} PRIVATE ${TRAY_DEFINITIONS})
+target_compile_options(${PROJECT_NAME} PRIVATE ${TRAY_COMPILE_OPTIONS})
+target_link_directories(${PROJECT_NAME} PRIVATE ${TRAY_EXTERNAL_DIRECTORIES})
+target_link_libraries(${PROJECT_NAME} PRIVATE ${TRAY_EXTERNAL_LIBRARIES})
+
+# tests
+if(BUILD_TESTS)
+    add_subdirectory(tests)
+endif()

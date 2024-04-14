@@ -1,16 +1,18 @@
-# Cross-platform Linux/Windows/MacOS Tray
+# Cross-platform Linux/macOS/Windows Tray
 
-<img src="screenshot_macosx.png">
+[![codecov](https://img.shields.io/codecov/c/gh/LizardByte/tray?token=HSX66JNEOL&style=for-the-badge&logo=codecov&label=codecov)](https://codecov.io/gh/LizardByte/tray)
 
-<img src="screenshot_windows.png">
+<img src="docs/images/screenshot_macosx.png">
 
-<img src="screenshot_linux.png">
+<img src="docs/images/screenshot_windows.png">
+
+<img src="docs/images/screenshot_linux.png">
 
 Cross-platform, super tiny C99 implementation of a system tray icon with a popup menu.
 
 Works well on:
 
-* Linux/Gtk (libappindicator)
+* Linux/Gtk (libayatana-appindicator3 or libappindicator3)
 * Windows XP or newer (shellapi.h)
 * MacOS (Cocoa/AppKit)
 
@@ -90,4 +92,3 @@ array must have text field set to NULL.
 
 This software is distributed under [MIT license](http://www.opensource.org/licenses/mit-license.php),
  so feel free to integrate it in your commercial products.
-

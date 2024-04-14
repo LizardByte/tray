@@ -1,0 +1,149 @@
+---
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - master
+    types:
+      - opened
+      - synchronize
+      - reopened
+  push:
+    branches:
+      - master
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            cmake_generator: "Unix Makefiles"
+            make_command: "make"
+            shell: "bash"
+          - os: ubuntu-latest
+            appindicator: "libayatana-appindicator3-dev"
+            cmake_generator: "Unix Makefiles"
+            make_command: "make"
+            shell: "bash"
+          - os: ubuntu-latest
+            appindicator: "libappindicator3-dev"
+            cmake_generator: "Unix Makefiles"
+            make_command: "make"
+            shell: "bash"
+          - os: windows-latest
+            cmake_generator: "MinGW Makefiles"
+            make_command: "mingw32-make"
+            shell: "msys2 {0}"
+
+    name: Build (${{ matrix.os }} - ${{ matrix.appindicator || 'default' }})
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Dependencies Linux
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ${{ matrix.appindicator }} \
+            libglib2.0-dev \
+            libnotify-dev \
+            xvfb
+
+      - name: Setup Dependencies Windows
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          install: >-
+            base-devel
+            make
+            mingw-w64-x86_64-binutils
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-toolchain
+
+      - name: Setup python
+        id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Python Path
+        id: python-path
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            # replace backslashes with double backslashes
+            python_path=$(echo "${{ steps.setup-python.outputs.python-path }}" | sed 's/\\/\\\\/g')
+          else
+            python_path=${{ steps.setup-python.outputs.python-path }}
+          fi
+
+          # step output
+          echo "python-path=${python_path}"
+          echo "python-path=${python_path}" >> $GITHUB_OUTPUT
+
+      - name: Build
+        run: |
+          mkdir build
+          cd build
+          cmake \
+            -G "${{ matrix.cmake_generator }}" \
+            ..
+          ${{ matrix.make_command }} -j
+
+      - name: Run tests
+        id: test
+        working-directory: build/tests
+        run: |
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            export DISPLAY=:1
+            Xvfb ${DISPLAY} -screen 0 1024x768x24 &
+          fi
+
+          ./test_tray --gtest_color=yes
+
+      - name: Generate gcov report
+        # any except canceled or skipped
+        if: always() && (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
+        id: test_report
+        working-directory: build
+        run: |
+          ${{ steps.python-path.outputs.python-path }} -m pip install gcovr
+          ${{ steps.python-path.outputs.python-path }} -m gcovr -r .. \
+            --exclude '.*tests/.*' \
+            --exclude '.*tests/.*' \
+            --xml-pretty \
+            -o coverage.xml
+
+      - name: Set codecov flags
+        id: codecov_flags
+        run: |
+          flags="${{ runner.os }}"
+          if [ -n "${{ matrix.appindicator }}" ]; then
+              flags="${flags},${{ matrix.appindicator }}"
+          fi
+          echo "flags=${flags}" >> $GITHUB_OUTPUT
+
+      - name: Upload coverage
+        # any except canceled or skipped
+        if: always() && (steps.test_report.outcome == 'success')
+        uses: codecov/codecov-action@v4
+        with:
+          fail_ci_if_error: true
+          files: ./build/coverage.xml
+          flags: "${{ steps.codecov_flags.outputs.flags }}"
+          token: ${{ secrets.CODECOV_TOKEN }}

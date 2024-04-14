@@ -275,4 +275,3 @@ void tray_exit(void) {
   PostQuitMessage(0);
   UnregisterClass(WC_TRAY_CLASS_NAME, GetModuleHandle(NULL));
 }
-
