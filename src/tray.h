@@ -2,8 +2,7 @@
 #define TRAY_H
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
 struct tray_menu;
@@ -32,16 +31,20 @@ struct tray_menu {
   struct tray_menu *submenu;
 };
 
-int tray_init(struct tray *tray);
+int
+tray_init(struct tray *tray);
 
-int tray_loop(int blocking);
+int
+tray_loop(int blocking);
 
-void tray_update(struct tray *tray);
+void
+tray_update(struct tray *tray);
 
-void tray_exit(void);
+void
+tray_exit(void);
 
 #ifdef __cplusplus
-} // extern "C"
+}  // extern "C"
 #endif
 
 #endif /* TRAY_H */
