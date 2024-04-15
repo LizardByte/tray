@@ -2,7 +2,7 @@
 #include <filesystem>
 #include <gtest/gtest.h>
 
-#include <tests/utils.h>
+#include "tests/utils.h"
 
 // Undefine the original TEST macro
 #undef TEST

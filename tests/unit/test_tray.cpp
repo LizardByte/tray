@@ -1,4 +1,4 @@
-#include <tests/conftest.cpp>
+#include "tests/conftest.cpp"
 
 #if defined(_WIN32) || defined(_WIN64)
   #define TRAY_WINAPI 1
