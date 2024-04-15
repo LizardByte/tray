@@ -70,8 +70,6 @@ protected:
       std::cout << std::endl
                 << "Test failed: " << test_info->name() << std::endl
                 << std::endl
-                << "Captured boost log:" << std::endl
-                << boost_log_buffer.str() << std::endl
                 << "Captured cout:" << std::endl
                 << cout_buffer.str() << std::endl
                 << "Captured stdout:" << std::endl
@@ -95,7 +93,6 @@ protected:
   std::vector<std::string> testArgs;  // CLI arguments used
   std::filesystem::path testBinary;  // full path of this binary
   std::filesystem::path testBinaryDir;  // full directory of this binary
-  std::stringstream boost_log_buffer;  // declare boost_log_buffer
   std::stringstream cout_buffer;  // declare cout_buffer
   std::stringstream stdout_buffer;  // declare stdout_buffer
   std::stringstream stderr_buffer;  // declare stderr_buffer
