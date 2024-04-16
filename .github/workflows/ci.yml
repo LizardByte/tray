@@ -143,6 +143,7 @@ jobs:
         if: always() && (steps.test_report.outcome == 'success')
         uses: codecov/codecov-action@v4
         with:
+          disable_search: true
           fail_ci_if_error: true
           files: ./build/coverage.xml
           flags: "${{ steps.codecov_flags.outputs.flags }}"
