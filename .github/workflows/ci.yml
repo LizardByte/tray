@@ -24,22 +24,14 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            cmake_generator: "Unix Makefiles"
-            make_command: "make"
             shell: "bash"
           - os: ubuntu-latest
             appindicator: "libayatana-appindicator3-dev"
-            cmake_generator: "Unix Makefiles"
-            make_command: "make"
             shell: "bash"
           - os: ubuntu-latest
             appindicator: "libappindicator3-dev"
-            cmake_generator: "Unix Makefiles"
-            make_command: "make"
             shell: "bash"
           - os: windows-latest
-            cmake_generator: "MinGW Makefiles"
-            make_command: "mingw32-make"
             shell: "msys2 {0}"
 
     name: Build (${{ matrix.os }} - ${{ matrix.appindicator || 'default' }})
@@ -59,22 +51,32 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
+            build-essential \
+            cmake \
             ${{ matrix.appindicator }} \
             libglib2.0-dev \
             libnotify-dev \
+            ninja-build \
             xvfb
+
+      - name: Setup Dependencies macOS
+        if: runner.os == 'macOS'
+        run: |
+          brew install \
+            cmake \
+            ninja
 
       - name: Setup Dependencies Windows
         if: runner.os == 'Windows'
         uses: msys2/setup-msys2@v2
         with:
+          msystem: ucrt64
           update: true
           install: >-
-            base-devel
-            make
-            mingw-w64-x86_64-binutils
-            mingw-w64-x86_64-cmake
-            mingw-w64-x86_64-toolchain
+            mingw-w64-ucrt-x86_64-binutils
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-toolchain
 
       - name: Setup python
         id: setup-python
@@ -98,23 +100,21 @@ jobs:
 
       - name: Build
         run: |
-          mkdir build
+          mkdir -p build
           cd build
-          cmake \
-            -G "${{ matrix.cmake_generator }}" \
-            ..
-          ${{ matrix.make_command }} -j
+          cmake -DCMAKE_BUILD_TYPE:STRING=Debug -G Ninja ..
+          ninja
 
       - name: Run tests
         id: test
-        working-directory: build/tests
+        working-directory: build
         run: |
           if [ "${{ runner.os }}" = "Linux" ]; then
             export DISPLAY=:1
             Xvfb ${DISPLAY} -screen 0 1024x768x24 &
           fi
 
-          ./test_tray --gtest_color=yes
+          ./tests/test_tray --gtest_color=yes
 
       - name: Generate gcov report
         # any except canceled or skipped
@@ -123,12 +123,10 @@ jobs:
         working-directory: build
         run: |
           ${{ steps.python-path.outputs.python-path }} -m pip install gcovr
-          ${{ steps.python-path.outputs.python-path }} -m gcovr -r .. \
+          ${{ steps.python-path.outputs.python-path }} -m gcovr . -r ../src \
             --exclude-noncode-lines \
             --exclude-throw-branches \
             --exclude-unreachable-branches \
-            --exclude '.*tests/.*' \
-            --exclude '.*third-party/.*' \
             --xml-pretty \
             -o coverage.xml
 
@@ -141,10 +139,12 @@ jobs:
           fi
           echo "flags=${flags}" >> $GITHUB_OUTPUT
 
+      # todo: upload coverage in separate job similar to LizardByte/libdisplaydevice
       - name: Upload coverage
         # any except canceled or skipped
         if: >-
-          always() && (steps.test_report.outcome == 'success') &&
+          always() &&
+          steps.test_report.outcome == 'success' &&
           startsWith(github.repository, 'LizardByte/')
         uses: codecov/codecov-action@v4
         with:
