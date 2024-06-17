@@ -80,7 +80,7 @@ static gboolean tray_update_internal(gpointer user_data) {
   struct tray *tray = user_data;
 
   if(indicator != NULL && IS_APP_INDICATOR(indicator)){
-    app_indicator_set_icon(indicator, tray->icon);
+    app_indicator_set_icon_full(indicator, tray->icon, tray->icon);
     // GTK is all about reference counting, so previous menu should be destroyed
     // here
     app_indicator_set_menu(indicator, GTK_MENU(_tray_menu(tray->menu)));
