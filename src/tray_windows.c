@@ -1,22 +1,35 @@
-#include <windows.h>
-#include <shellapi.h>
+/**
+ * @file src/tray_windows.c
+ * @brief System tray implementation for Windows.
+ */
+// header include
 #include "tray.h"
 
-#define WM_TRAY_CALLBACK_MESSAGE (WM_USER + 1)
-#define WC_TRAY_CLASS_NAME "TRAY"
-#define ID_TRAY_FIRST 1000
+// system includes
+#include <windows.h>
+#include <shellapi.h>
 
+#define WM_TRAY_CALLBACK_MESSAGE (WM_USER + 1)  ///< Tray callback message.
+#define WC_TRAY_CLASS_NAME "TRAY"  ///< Tray window class name.
+#define ID_TRAY_FIRST 1000  ///< First tray identifier.
+
+/**
+ * @brief Icon information.
+ */
 struct icon_info {
-  const char *path;
-  HICON icon;
-  HICON large_icon;
-  HICON notification_icon;
+  const char *path;  ///< Path to the icon
+  HICON icon;  ///< Regular icon
+  HICON large_icon;  ///< Large icon
+  HICON notification_icon;  ///< Notification icon
 };
 
+/**
+ * @brief Icon type.
+ */
 enum IconType {
-  REGULAR = 1,
-  LARGE,
-  NOTIFICATION
+  REGULAR = 1,  ///< Regular icon
+  LARGE,  ///< Large icon
+  NOTIFICATION  ///< Notification icon
 };
 
 static WNDCLASSEX wc;
@@ -108,6 +121,11 @@ static HMENU _tray_menu(struct tray_menu *m, UINT *id) {
   return hmenu;
 }
 
+/**
+ * @brief Create icon information.
+ * @param path Path to the icon.
+ * @return Icon information.
+ */
 struct icon_info _create_icon_info(const char * path) {
   struct icon_info info;
   info.path = strdup(path);
@@ -121,6 +139,11 @@ struct icon_info _create_icon_info(const char * path) {
   return info;
 }
 
+/**
+ * @brief Initialize icon cache.
+ * @param paths Paths to the icons.
+ * @param count Number of paths.
+ */
 void _init_icon_cache(const char ** paths, int count) {
   icon_info_count = count;
   icon_infos = malloc(sizeof(struct icon_info) * icon_info_count);
@@ -130,6 +153,9 @@ void _init_icon_cache(const char ** paths, int count) {
   }
 }
 
+/**
+ * @brief Destroy icon cache.
+ */
 void _destroy_icon_cache() {
   for (int i = 0; i < icon_info_count; ++i) {
     DestroyIcon(icon_infos[i].icon);
@@ -143,6 +169,12 @@ void _destroy_icon_cache() {
   icon_info_count = 0;
 }
 
+/**
+ * @brief Fetch cached icon.
+ * @param icon_record Icon record.
+ * @param icon_type Icon type.
+ * @return Icon.
+ */
 HICON _fetch_cached_icon(struct icon_info *icon_record, enum IconType icon_type) {
   switch (icon_type) {
     case REGULAR:
@@ -154,6 +186,12 @@ HICON _fetch_cached_icon(struct icon_info *icon_record, enum IconType icon_type)
   }
 }
 
+/**
+ * @brief Fetch icon.
+ * @param path Path to the icon.
+ * @param icon_type Icon type.
+ * @return Icon.
+ */
 HICON _fetch_icon(const char * path, enum IconType icon_type) {
   // Find a cached icon by path
   for (int i = 0; i < icon_info_count; ++i) {

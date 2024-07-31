@@ -1,8 +1,12 @@
+/**
+ * @file src/example.c
+ * @brief Example usage of the tray library.
+ */
 #include <stdio.h>
 #include <string.h>
 
 #if defined (_WIN32) || defined (_WIN64)
-#define TRAY_WINAPI 1
+#define TRAY_WINAPI 1  ///< Use WinAPI.
 #elif defined (__linux__) || defined (linux) || defined (__linux)
 #define TRAY_APPINDICATOR 1
 #elif defined (__APPLE__) || defined (__MACH__)
@@ -18,8 +22,8 @@
 #define TRAY_ICON1 "icon.png"
 #define TRAY_ICON2 "icon.png"
 #elif TRAY_WINAPI
-#define TRAY_ICON1 "icon.ico"
-#define TRAY_ICON2 "icon.ico"
+#define TRAY_ICON1 "icon.ico"  ///< Path to first icon.
+#define TRAY_ICON2 "icon.ico"  ///< Path to second icon.
 #endif
 
 static struct tray tray;
@@ -92,6 +96,10 @@ static struct tray tray = {
             {.text = NULL}},
 };
 
+/**
+ * @brief Main entry point.
+ * @return 0 on success, 1 on error.
+ */
 int main() {
   if (tray_init(&tray) < 0) {
     printf("failed to create tray\n");

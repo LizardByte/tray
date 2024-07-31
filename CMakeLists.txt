@@ -1,8 +1,11 @@
+#
+# Project configuration
+#
 cmake_minimum_required(VERSION 3.13 FATAL_ERROR) # target_link_directories
-
-project(tray
-        LANGUAGES C
-        DESCRIPTION "A cross-platform system tray library")
+project(tray VERSION 0.0.0
+        DESCRIPTION "A cross-platform system tray library"
+        HOMEPAGE_URL "https://app.lizardbyte.dev"
+        LANGUAGES C)
 
 set(PROJECT_LICENSE "MIT")
 
@@ -11,10 +14,21 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build." FORCE)
 endif()
 
+# Add our custom CMake modules to the global path
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
-# options
+#
+# Project optional configuration
+#
+option(BUILD_DOCS "Build documentation" ON)
 option(BUILD_TESTS "Build tests" ON)
+
+#
+# Documentation
+#
+if(BUILD_DOCS)
+    add_subdirectory(third-party/doxyconfig docs)
+endif()
 
 # Generate 'compile_commands.json' for clang_complete
 set(CMAKE_COLOR_MAKEFILE ON)

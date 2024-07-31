@@ -1,10 +1,29 @@
+/**
+ * @file src/tray_darwin.m
+ * @brief System tray implementation for macOS.
+ */
+// header include
 #include "tray.h"
-#include <Cocoa/Cocoa.h>
+
+// system includes
 #include <string.h>
 
+// lib includes
+#include <Cocoa/Cocoa.h>
+
+/**
+ * @class AppDelegate
+ * @brief The application delegate that handles menu actions.
+ */
 @interface AppDelegate: NSObject <NSApplicationDelegate>
+/**
+ * @brief Callback function for menu item actions.
+ * @param sender The object that sent the action message.
+ * @return void
+ */
 - (IBAction)menuCallback:(id)sender;
 @end
+
 @implementation AppDelegate {
 }
 - (IBAction)menuCallback:(id)sender {

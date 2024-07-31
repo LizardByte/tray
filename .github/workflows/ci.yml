@@ -64,7 +64,10 @@ jobs:
         run: |
           brew install \
             cmake \
-            ninja
+            doxygen \
+            graphviz \
+            ninja \
+            node
 
       - name: Setup Dependencies Windows
         if: runner.os == 'Windows'
@@ -73,9 +76,12 @@ jobs:
           msystem: ucrt64
           update: true
           install: >-
+            doxygen
             mingw-w64-ucrt-x86_64-binutils
             mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-graphviz
             mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-nodejs
             mingw-w64-ucrt-x86_64-toolchain
 
       - name: Setup python
@@ -101,20 +107,32 @@ jobs:
       - name: Build
         run: |
           mkdir -p build
-          cd build
-          cmake -DCMAKE_BUILD_TYPE:STRING=Debug -G Ninja ..
-          ninja
+
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            # Doxygen from Ubuntu is too old, need Doxygen >= 1.10
+            DOCS=OFF
+          else
+            DOCS=ON
+          fi
+
+          cmake \
+            -DBUILD_DOCS=${DOCS} \
+            -DCMAKE_BUILD_TYPE:STRING=Debug \
+            -B build \
+            -G Ninja \
+            -S .
+          ninja -C build
 
       - name: Run tests
         id: test
-        working-directory: build
+        working-directory: build/tests
         run: |
           if [ "${{ runner.os }}" = "Linux" ]; then
             export DISPLAY=:1
             Xvfb ${DISPLAY} -screen 0 1024x768x24 &
           fi
 
-          ./tests/test_tray --gtest_color=yes
+          ./test_tray --gtest_color=yes
 
       - name: Generate gcov report
         # any except canceled or skipped

@@ -1,18 +1,26 @@
+/**
+ * @file src/tray_linux.c
+ * @brief System tray implementation for Linux.
+ */
+// header include
 #include "tray.h"
+
+// system includes
 #include <string.h>
 #include <stddef.h>
 #include <stdbool.h>
+
+// lib includes
 #ifdef TRAY_AYATANA_APPINDICATOR
 #include <libayatana-appindicator/app-indicator.h>
 #elif TRAY_LEGACY_APPINDICATOR
 #include <libappindicator/app-indicator.h>
 #endif
 #ifndef IS_APP_INDICATOR
-#define IS_APP_INDICATOR APP_IS_INDICATOR 
+#define IS_APP_INDICATOR APP_IS_INDICATOR  ///< Define IS_APP_INDICATOR for app-indicator compatibility.
 #endif
-
 #include <libnotify/notify.h>
-#define TRAY_APPINDICATOR_ID "tray-id"
+#define TRAY_APPINDICATOR_ID "tray-id"  ///< Tray appindicator ID.
 
 static bool async_update_pending = false;
 static pthread_cond_t async_update_cv = PTHREAD_COND_INITIALIZER;

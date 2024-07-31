@@ -40,3 +40,6 @@
 # build directories
 build/
 cmake-*/
+
+# doxyconfig
+docs/*-doxyconfig*

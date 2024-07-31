@@ -8,9 +8,12 @@ brew install \
 
 # build
 mkdir -p build
-cd build || exit 1
-cmake -G Ninja ..
-ninja
+cmake \
+  -DBUILD_DOCS=OFF \
+  -B build \
+  -G Ninja \
+  -S .
+ninja -C build
 
 # skip autobuild
 echo "skip_autobuild=true" >> "$GITHUB_OUTPUT"
