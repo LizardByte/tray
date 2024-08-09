@@ -20,14 +20,9 @@ set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 #
 # Project optional configuration
 #
-option(BUILD_DOCS "Build documentation" ON)
-option(BUILD_TESTS "Build tests" ON)
-
-#
-# Documentation
-#
-if(BUILD_DOCS)
-    add_subdirectory(third-party/doxyconfig docs)
+if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+    option(BUILD_DOCS "Build documentation" ON)
+    option(BUILD_TESTS "Build tests" ON)
 endif()
 
 # Generate 'compile_commands.json' for clang_complete
@@ -107,7 +102,25 @@ target_compile_options(${PROJECT_NAME} PRIVATE ${TRAY_COMPILE_OPTIONS})
 target_link_directories(${PROJECT_NAME} PRIVATE ${TRAY_EXTERNAL_DIRECTORIES})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${TRAY_EXTERNAL_LIBRARIES})
 
-# tests
-if(BUILD_TESTS)
-    add_subdirectory(tests)
+#
+# Testing and documentation are only available if this is the main project
+#
+if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+    if(BUILD_DOCS)
+        add_subdirectory(third-party/doxyconfig docs)
+    endif()
+
+    if(BUILD_TESTS)
+        #
+        # Additional setup for coverage
+        # https://gcovr.com/en/stable/guide/compiling.html#compiler-options
+        #
+        if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+            set(CMAKE_CXX_FLAGS "-fprofile-arcs -ftest-coverage -O0")
+            set(CMAKE_C_FLAGS "-fprofile-arcs -ftest-coverage -O0")
+        endif()
+
+        enable_testing()
+        add_subdirectory(tests)
+    endif()
 endif()
