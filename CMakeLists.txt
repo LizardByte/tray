@@ -116,8 +116,8 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
         # https://gcovr.com/en/stable/guide/compiling.html#compiler-options
         #
         if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-            set(CMAKE_CXX_FLAGS "-fprofile-arcs -ftest-coverage -O0")
-            set(CMAKE_C_FLAGS "-fprofile-arcs -ftest-coverage -O0")
+            set(CMAKE_CXX_FLAGS "-fprofile-arcs -ftest-coverage -ggdb -O0")
+            set(CMAKE_C_FLAGS "-fprofile-arcs -ftest-coverage -ggdb -O0")
         endif()
 
         enable_testing()
