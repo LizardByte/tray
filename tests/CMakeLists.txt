@@ -5,19 +5,12 @@ project(test_tray)
 
 include_directories("${CMAKE_SOURCE_DIR}")
 
-enable_testing()
-
 # Add GoogleTest directory to the project
 set(GTEST_SOURCE_DIR "${CMAKE_SOURCE_DIR}/third-party/googletest")
 set(INSTALL_GTEST OFF)
 set(INSTALL_GMOCK OFF)
 add_subdirectory("${GTEST_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/googletest")
 include_directories("${GTEST_SOURCE_DIR}/googletest/include" "${GTEST_SOURCE_DIR}")
-
-# coverage
-# https://gcovr.com/en/stable/guide/compiling.html#compiler-options
-set(CMAKE_CXX_FLAGS "-fprofile-arcs -ftest-coverage -ggdb -O0")
-set(CMAKE_C_FLAGS "-fprofile-arcs -ftest-coverage -ggdb -O0")
 
 # if windows
 if (WIN32)
