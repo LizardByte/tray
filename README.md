@@ -126,3 +126,8 @@ array must have text field set to NULL.
 
 This software is distributed under [MIT license](http://www.opensource.org/licenses/mit-license.php),
 so feel free to integrate it in your commercial products.
+
+<details style="display: none;">
+  <summary></summary>
+  [TOC]
+</details>
