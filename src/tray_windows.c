@@ -7,7 +7,10 @@
 
 // system includes
 #include <windows.h>
+// clang-format off
+// build fails if shellapi.h is included before windows.h
 #include <shellapi.h>
+// clang-format on
 
 #define WM_TRAY_CALLBACK_MESSAGE (WM_USER + 1)  ///< Tray callback message.
 #define WC_TRAY_CLASS_NAME "TRAY"  ///< Tray window class name.
@@ -42,43 +45,44 @@ static UINT wm_taskbarcreated;
 static struct icon_info *icon_infos;
 static int icon_info_count;
 
-static LRESULT CALLBACK _tray_wnd_proc(HWND hwnd, UINT msg, WPARAM wparam,
-                                       LPARAM lparam) {
+static LRESULT CALLBACK
+_tray_wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
   switch (msg) {
-  case WM_CLOSE:
-    DestroyWindow(hwnd);
-    return 0;
-  case WM_DESTROY:
-    PostQuitMessage(0);
-    return 0;
-  case WM_TRAY_CALLBACK_MESSAGE:
-    if (lparam == WM_LBUTTONUP || lparam == WM_RBUTTONUP) {
-      POINT p;
-      GetCursorPos(&p);
-      SetForegroundWindow(hwnd);
-      WORD cmd = TrackPopupMenu(hmenu, TPM_LEFTALIGN | TPM_RIGHTBUTTON |
-                                           TPM_RETURNCMD | TPM_NONOTIFY,
-                                p.x, p.y, 0, hwnd, NULL);
-      SendMessage(hwnd, WM_COMMAND, cmd, 0);
+    case WM_CLOSE:
+      DestroyWindow(hwnd);
       return 0;
-    } else if(lparam == NIN_BALLOONUSERCLICK && notification_cb != NULL){
-      notification_cb();
-    }
-    break;
-  case WM_COMMAND:
-    if (wparam >= ID_TRAY_FIRST) {
-      MENUITEMINFO item = {
-          .cbSize = sizeof(MENUITEMINFO), .fMask = MIIM_ID | MIIM_DATA,
-      };
-      if (GetMenuItemInfo(hmenu, wparam, FALSE, &item)) {
-        struct tray_menu *menu = (struct tray_menu *)item.dwItemData;
-        if (menu != NULL && menu->cb != NULL) {
-          menu->cb(menu);
-        }
+    case WM_DESTROY:
+      PostQuitMessage(0);
+      return 0;
+    case WM_TRAY_CALLBACK_MESSAGE:
+      if (lparam == WM_LBUTTONUP || lparam == WM_RBUTTONUP) {
+        POINT p;
+        GetCursorPos(&p);
+        SetForegroundWindow(hwnd);
+        WORD cmd = TrackPopupMenu(hmenu, TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_RETURNCMD | TPM_NONOTIFY,
+          p.x, p.y, 0, hwnd, NULL);
+        SendMessage(hwnd, WM_COMMAND, cmd, 0);
+        return 0;
       }
-      return 0;
-    }
-    break;
+      else if (lparam == NIN_BALLOONUSERCLICK && notification_cb != NULL) {
+        notification_cb();
+      }
+      break;
+    case WM_COMMAND:
+      if (wparam >= ID_TRAY_FIRST) {
+        MENUITEMINFO item = {
+          .cbSize = sizeof(MENUITEMINFO),
+          .fMask = MIIM_ID | MIIM_DATA,
+        };
+        if (GetMenuItemInfo(hmenu, wparam, FALSE, &item)) {
+          struct tray_menu *menu = (struct tray_menu *) item.dwItemData;
+          if (menu != NULL && menu->cb != NULL) {
+            menu->cb(menu);
+          }
+        }
+        return 0;
+      }
+      break;
   }
 
   if (msg == wm_taskbarcreated) {
@@ -89,12 +93,14 @@ static LRESULT CALLBACK _tray_wnd_proc(HWND hwnd, UINT msg, WPARAM wparam,
   return DefWindowProc(hwnd, msg, wparam, lparam);
 }
 
-static HMENU _tray_menu(struct tray_menu *m, UINT *id) {
+static HMENU
+_tray_menu(struct tray_menu *m, UINT *id) {
   HMENU hmenu = CreatePopupMenu();
   for (; m != NULL && m->text != NULL; m++, (*id)++) {
     if (strcmp(m->text, "-") == 0) {
       InsertMenu(hmenu, *id, MF_SEPARATOR, TRUE, "");
-    } else {
+    }
+    else {
       MENUITEMINFO item;
       memset(&item, 0, sizeof(item));
       item.cbSize = sizeof(MENUITEMINFO);
@@ -112,8 +118,8 @@ static HMENU _tray_menu(struct tray_menu *m, UINT *id) {
         item.fState |= MFS_CHECKED;
       }
       item.wID = *id;
-      item.dwTypeData = (LPSTR)m->text;
-      item.dwItemData = (ULONG_PTR)m;
+      item.dwTypeData = (LPSTR) m->text;
+      item.dwItemData = (ULONG_PTR) m;
 
       InsertMenuItem(hmenu, *id, TRUE, &item);
     }
@@ -126,7 +132,8 @@ static HMENU _tray_menu(struct tray_menu *m, UINT *id) {
  * @param path Path to the icon.
  * @return Icon information.
  */
-struct icon_info _create_icon_info(const char * path) {
+struct icon_info
+_create_icon_info(const char *path) {
   struct icon_info info;
   info.path = strdup(path);
 
@@ -144,7 +151,8 @@ struct icon_info _create_icon_info(const char * path) {
  * @param paths Paths to the icons.
  * @param count Number of paths.
  */
-void _init_icon_cache(const char ** paths, int count) {
+void
+_init_icon_cache(const char **paths, int count) {
   icon_info_count = count;
   icon_infos = malloc(sizeof(struct icon_info) * icon_info_count);
 
@@ -156,12 +164,13 @@ void _init_icon_cache(const char ** paths, int count) {
 /**
  * @brief Destroy icon cache.
  */
-void _destroy_icon_cache() {
+void
+_destroy_icon_cache() {
   for (int i = 0; i < icon_info_count; ++i) {
     DestroyIcon(icon_infos[i].icon);
     DestroyIcon(icon_infos[i].large_icon);
     DestroyIcon(icon_infos[i].notification_icon);
-    free((void*) icon_infos[i].path);
+    free((void *) icon_infos[i].path);
   }
 
   free(icon_infos);
@@ -175,7 +184,8 @@ void _destroy_icon_cache() {
  * @param icon_type Icon type.
  * @return Icon.
  */
-HICON _fetch_cached_icon(struct icon_info *icon_record, enum IconType icon_type) {
+HICON
+_fetch_cached_icon(struct icon_info *icon_record, enum IconType icon_type) {
   switch (icon_type) {
     case REGULAR:
       return icon_record->icon;
@@ -192,7 +202,8 @@ HICON _fetch_cached_icon(struct icon_info *icon_record, enum IconType icon_type)
  * @param icon_type Icon type.
  * @return Icon.
  */
-HICON _fetch_icon(const char * path, enum IconType icon_type) {
+HICON
+_fetch_icon(const char *path, enum IconType icon_type) {
   // Find a cached icon by path
   for (int i = 0; i < icon_info_count; ++i) {
     if (strcmp(icon_infos[i].path, path) == 0) {
@@ -209,7 +220,8 @@ HICON _fetch_icon(const char * path, enum IconType icon_type) {
   return _fetch_cached_icon(&icon_infos[icon_info_count - 1], icon_type);
 }
 
-int tray_init(struct tray *tray) {
+int
+tray_init(struct tray *tray) {
   wm_taskbarcreated = RegisterWindowMessage("TaskbarCreated");
 
   _init_icon_cache(tray->allIconPaths, tray->iconPathCount);
@@ -241,11 +253,13 @@ int tray_init(struct tray *tray) {
   return 0;
 }
 
-int tray_loop(int blocking) {
+int
+tray_loop(int blocking) {
   MSG msg;
   if (blocking) {
     GetMessage(&msg, hwnd, 0, 0);
-  } else {
+  }
+  else {
     PeekMessage(&msg, hwnd, 0, 0, PM_REMOVE);
   }
   if (msg.message == WM_QUIT) {
@@ -256,44 +270,45 @@ int tray_loop(int blocking) {
   return 0;
 }
 
-void tray_update(struct tray *tray) {
+void
+tray_update(struct tray *tray) {
   UINT id = ID_TRAY_FIRST;
   HMENU prevmenu = hmenu;
   hmenu = _tray_menu(tray->menu, &id);
-  SendMessage(hwnd, WM_INITMENUPOPUP, (WPARAM)hmenu, 0);
+  SendMessage(hwnd, WM_INITMENUPOPUP, (WPARAM) hmenu, 0);
 
   HICON icon = _fetch_icon(tray->icon, REGULAR);
-  HICON largeIcon = tray->notification_icon != 0
-    ? _fetch_icon(tray->notification_icon, NOTIFICATION)
-    : _fetch_icon(tray->icon, LARGE);
+  HICON largeIcon = tray->notification_icon != 0 ? _fetch_icon(tray->notification_icon, NOTIFICATION) : _fetch_icon(tray->icon, LARGE);
 
   if (icon != NULL) {
     nid.hIcon = icon;
   }
 
-  if(largeIcon != 0){
+  if (largeIcon != 0) {
     nid.hBalloonIcon = largeIcon;
     nid.dwInfoFlags = NIIF_USER | NIIF_LARGE_ICON;
   }
-  if(tray->tooltip != 0 && strlen(tray->tooltip) > 0) {
+  if (tray->tooltip != 0 && strlen(tray->tooltip) > 0) {
     strncpy(nid.szTip, tray->tooltip, sizeof(nid.szTip));
     nid.uFlags |= NIF_TIP;
   }
   QUERY_USER_NOTIFICATION_STATE notification_state;
   HRESULT ns = SHQueryUserNotificationState(&notification_state);
   int can_show_notifications = ns == S_OK && notification_state == QUNS_ACCEPTS_NOTIFICATIONS;
-  if(can_show_notifications == 1 && tray->notification_title != 0 && strlen(tray->notification_title) > 0){
+  if (can_show_notifications == 1 && tray->notification_title != 0 && strlen(tray->notification_title) > 0) {
     strncpy(nid.szInfoTitle, tray->notification_title, sizeof(nid.szInfoTitle));
     nid.uFlags |= NIF_INFO;
-  } else if((nid.uFlags & NIF_INFO) == NIF_INFO) {
+  }
+  else if ((nid.uFlags & NIF_INFO) == NIF_INFO) {
     strncpy(nid.szInfoTitle, "", sizeof(nid.szInfoTitle));
   }
-  if(can_show_notifications == 1 && tray->notification_text != 0 && strlen(tray->notification_text) > 0){
+  if (can_show_notifications == 1 && tray->notification_text != 0 && strlen(tray->notification_text) > 0) {
     strncpy(nid.szInfo, tray->notification_text, sizeof(nid.szInfo));
-  } else if((nid.uFlags & NIF_INFO) == NIF_INFO) {
+  }
+  else if ((nid.uFlags & NIF_INFO) == NIF_INFO) {
     strncpy(nid.szInfo, "", sizeof(nid.szInfo));
   }
-  if(can_show_notifications == 1 && tray->notification_cb != NULL){
+  if (can_show_notifications == 1 && tray->notification_cb != NULL) {
     notification_cb = tray->notification_cb;
   }
 
@@ -304,7 +319,8 @@ void tray_update(struct tray *tray) {
   }
 }
 
-void tray_exit(void) {
+void
+tray_exit(void) {
   Shell_NotifyIcon(NIM_DELETE, &nid);
   _destroy_icon_cache();
   if (hmenu != 0) {
