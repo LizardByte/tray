@@ -145,8 +145,13 @@ jobs:
             --exclude-noncode-lines \
             --exclude-throw-branches \
             --exclude-unreachable-branches \
+            --verbose \
             --xml-pretty \
             -o coverage.xml
+
+      - name: Debug coverage file
+        run: |
+          cat build/coverage.xml
 
       - name: Set codecov flags
         id: codecov_flags

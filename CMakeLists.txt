@@ -115,7 +115,7 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
         # Additional setup for coverage
         # https://gcovr.com/en/stable/guide/compiling.html#compiler-options
         #
-        if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
             set(CMAKE_CXX_FLAGS "-fprofile-arcs -ftest-coverage -ggdb -O0")
             set(CMAKE_C_FLAGS "-fprofile-arcs -ftest-coverage -ggdb -O0")
         endif()
