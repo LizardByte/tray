@@ -1,16 +1,19 @@
+// standard includes
 #include <array>
 #include <filesystem>
+
+// lib includes
 #include <gtest/gtest.h>
 
+// test includes
 #include "tests/utils.h"
 
 // Undefine the original TEST macro
 #undef TEST
 
 // Redefine TEST to use our BaseTest class, to automatically use our BaseTest fixture
-#define TEST(test_case_name, test_name)              \
-  GTEST_TEST_(test_case_name, test_name, ::BaseTest, \
-    ::testing::internal::GetTypeId<::BaseTest>())
+#define TEST(test_case_name, test_name) \
+  GTEST_TEST_(test_case_name, test_name, ::BaseTest, ::testing::internal::GetTypeId<::BaseTest>())
 
 /**
  * @brief Base class for tests.
@@ -29,14 +32,15 @@ protected:
   // https://stackoverflow.com/a/33186201/11214013
 
   BaseTest():
-      sbuf { nullptr }, pipe_stdout { nullptr }, pipe_stderr { nullptr } {
+      sbuf {nullptr},
+      pipe_stdout {nullptr},
+      pipe_stderr {nullptr} {
     // intentionally empty
   }
 
   ~BaseTest() override = default;
 
-  void
-  SetUp() override {
+  void SetUp() override {
     // todo: only run this one time, instead of every time a test is run
     // see: https://stackoverflow.com/questions/2435277/googletest-accessing-the-environment-from-a-test
     // get command line args from the test executable
@@ -59,8 +63,7 @@ protected:
     std::cout.rdbuf(cout_buffer.rdbuf());  // redirect cout to buffer (std::cout)
   }
 
-  void
-  TearDown() override {
+  void TearDown() override {
     std::cout.rdbuf(sbuf);  // restore cout buffer
 
     // get test info
@@ -100,8 +103,7 @@ protected:
   FILE *pipe_stdout;
   FILE *pipe_stderr;
 
-  int
-  exec(const char *cmd) {
+  int exec(const char *cmd) {
     std::array<char, 128> buffer {};
     pipe_stdout = popen((std::string(cmd) + " 2>&1").c_str(), "r");
     pipe_stderr = popen((std::string(cmd) + " 2>&1").c_str(), "r");
@@ -126,46 +128,40 @@ protected:
 
 class LinuxTest: public BaseTest {
 protected:
-  void
-  SetUp() override {
+  void SetUp() override {
 #ifndef __linux__
     GTEST_SKIP_("Skipping, this test is for Linux only.");
 #endif
   }
 
-  void
-  TearDown() override {
+  void TearDown() override {
     BaseTest::TearDown();
   }
 };
 
 class MacOSTest: public BaseTest {
 protected:
-  void
-  SetUp() override {
+  void SetUp() override {
 #if !defined(__APPLE__) || !defined(__MACH__)
     GTEST_SKIP_("Skipping, this test is for macOS only.");
 #endif
   }
 
-  void
-  TearDown() override {
+  void TearDown() override {
     BaseTest::TearDown();
   }
 };
 
 class WindowsTest: public BaseTest {
 protected:
-  void
-  SetUp() override {
+  void SetUp() override {
 #ifndef _WIN32
     GTEST_SKIP_("Skipping, this test is for Windows only.");
 #endif
     BaseTest::SetUp();
   }
 
-  void
-  TearDown() override {
+  void TearDown() override {
     BaseTest::TearDown();
   }
 };

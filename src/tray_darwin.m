@@ -2,14 +2,14 @@
  * @file src/tray_darwin.m
  * @brief System tray implementation for macOS.
  */
-// header include
-#include "tray.h"
-
-// system includes
+// standard includes
 #include <string.h>
 
 // lib includes
 #include <Cocoa/Cocoa.h>
+
+// local includes
+#include "tray.h"
 
 /**
  * @class AppDelegate
@@ -26,28 +26,28 @@
 
 @implementation AppDelegate {
 }
+
 - (IBAction)menuCallback:(id)sender {
   struct tray_menu *m = [[sender representedObject] pointerValue];
   if (m != NULL && m->cb != NULL) {
     m->cb(m);
   }
 }
+
 @end
 
 static NSApplication *app;
 static NSStatusBar *statusBar;
 static NSStatusItem *statusItem;
 
-static NSMenu *
-_tray_menu(struct tray_menu *m) {
+static NSMenu *_tray_menu(struct tray_menu *m) {
   NSMenu *menu = [[NSMenu alloc] init];
   [menu setAutoenablesItems:FALSE];
 
   for (; m != NULL && m->text != NULL; m++) {
     if (strcmp(m->text, "-") == 0) {
       [menu addItem:[NSMenuItem separatorItem]];
-    }
-    else {
+    } else {
       NSMenuItem *menuItem = [[NSMenuItem alloc]
         initWithTitle:[NSString stringWithUTF8String:m->text]
                action:@selector(menuCallback:)
@@ -64,8 +64,7 @@ _tray_menu(struct tray_menu *m) {
   return menu;
 }
 
-int
-tray_init(struct tray *tray) {
+int tray_init(struct tray *tray) {
   AppDelegate *delegate = [[AppDelegate alloc] init];
   app = [NSApplication sharedApplication];
   [app setDelegate:delegate];
@@ -76,8 +75,7 @@ tray_init(struct tray *tray) {
   return 0;
 }
 
-int
-tray_loop(int blocking) {
+int tray_loop(int blocking) {
   NSDate *until = (blocking ? [NSDate distantFuture] : [NSDate distantPast]);
   NSEvent *event = [app nextEventMatchingMask:ULONG_MAX
                                     untilDate:until
@@ -89,8 +87,7 @@ tray_loop(int blocking) {
   return 0;
 }
 
-void
-tray_update(struct tray *tray) {
+void tray_update(struct tray *tray) {
   NSImage *image = [[NSImage alloc] initWithContentsOfFile:[NSString stringWithUTF8String:tray->icon]];
   NSSize size = NSMakeSize(16, 16);
   [image setSize:NSMakeSize(16, 16)];
@@ -98,7 +95,6 @@ tray_update(struct tray *tray) {
   [statusItem setMenu:_tray_menu(tray->menu)];
 }
 
-void
-tray_exit(void) {
+void tray_exit(void) {
   [app terminate:app];
 }

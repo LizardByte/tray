@@ -1,3 +1,4 @@
+// test includes
 #include "tests/conftest.cpp"
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -8,6 +9,7 @@
   #define TRAY_APPKIT 1
 #endif
 
+// local includes
 #include "src/tray.h"
 
 #if TRAY_APPINDICATOR
@@ -32,64 +34,61 @@ protected:
   static struct tray_menu submenu[];
 
   // Non-static member functions
-  static void
-  hello_cb(struct tray_menu *item) {
+  static void hello_cb(struct tray_menu *item) {
     // Mock implementation
   }
-  static void
-  toggle_cb(struct tray_menu *item) {
+
+  static void toggle_cb(struct tray_menu *item) {
     item->checked = !item->checked;
     tray_update(&testTray);
   }
-  static void
-  quit_cb(struct tray_menu *item) {
+
+  static void quit_cb(struct tray_menu *item) {
     tray_exit();
   }
-  static void
-  submenu_cb(struct tray_menu *item) {
+
+  static void submenu_cb(struct tray_menu *item) {
     // Mock implementation
     tray_update(&testTray);
   }
 
-  void
-  SetUp() override {
+  void SetUp() override {
     testTray.icon = TRAY_ICON1;
     testTray.tooltip = "TestTray";
     testTray.menu = submenu;
   }
 
-  void
-  TearDown() override {
+  void TearDown() override {
     // Clean up any resources if needed
   }
 };
 
 // Define the static arrays
 struct tray_menu TrayTest::submenu7_8[] = {
-  { .text = "7", .cb = submenu_cb },
-  { .text = "-" },
-  { .text = "8", .cb = submenu_cb },
-  { .text = nullptr }
+  {.text = "7", .cb = submenu_cb},
+  {.text = "-"},
+  {.text = "8", .cb = submenu_cb},
+  {.text = nullptr}
 };
 struct tray_menu TrayTest::submenu5_6[] = {
-  { .text = "5", .cb = submenu_cb },
-  { .text = "6", .cb = submenu_cb },
-  { .text = nullptr }
+  {.text = "5", .cb = submenu_cb},
+  {.text = "6", .cb = submenu_cb},
+  {.text = nullptr}
 };
 struct tray_menu TrayTest::submenu_second[] = {
-  { .text = "THIRD", .submenu = submenu7_8 },
-  { .text = "FOUR", .submenu = submenu5_6 },
-  { .text = nullptr }
+  {.text = "THIRD", .submenu = submenu7_8},
+  {.text = "FOUR", .submenu = submenu5_6},
+  {.text = nullptr}
 };
 struct tray_menu TrayTest::submenu[] = {
-  { .text = "Hello", .cb = hello_cb },
-  { .text = "Checked", .checked = 1, .checkbox = 1, .cb = toggle_cb },
-  { .text = "Disabled", .disabled = 1 },
-  { .text = "-" },
-  { .text = "SubMenu", .submenu = submenu_second },
-  { .text = "-" },
-  { .text = "Quit", .cb = quit_cb },
-  { .text = nullptr }
+  {.text = "Hello", .cb = hello_cb},
+  {.text = "Checked", .checked = 1, .checkbox = 1, .cb = toggle_cb},
+  {.text = "Disabled", .disabled = 1},
+  {.text = "-"},
+  {.text = "SubMenu", .submenu = submenu_second},
+  {.text = "-"},
+  {.text = "Quit", .cb = quit_cb},
+  {.text = nullptr}
 };
 struct tray TrayTest::testTray = {
   .icon = TRAY_ICON1,

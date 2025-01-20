@@ -2,10 +2,7 @@
  * @file src/tray_linux.c
  * @brief System tray implementation for Linux.
  */
-// header include
-#include "tray.h"
-
-// system includes
+// standard includes
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
@@ -22,6 +19,9 @@
 #include <libnotify/notify.h>
 #define TRAY_APPINDICATOR_ID "tray-id"  ///< Tray appindicator ID.
 
+// local includes
+#include "tray.h"
+
 static bool async_update_pending = false;
 static pthread_cond_t async_update_cv = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t async_update_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -29,32 +29,27 @@ static pthread_mutex_t async_update_mutex = PTHREAD_MUTEX_INITIALIZER;
 static AppIndicator *indicator = NULL;
 static int loop_result = 0;
 static NotifyNotification *currentNotification = NULL;
-static void
-_tray_menu_cb(GtkMenuItem *item, gpointer data) {
+
+static void _tray_menu_cb(GtkMenuItem *item, gpointer data) {
   (void) item;
   struct tray_menu *m = (struct tray_menu *) data;
   m->cb(m);
 }
 
-static GtkMenuShell *
-_tray_menu(struct tray_menu *m) {
+static GtkMenuShell *_tray_menu(struct tray_menu *m) {
   GtkMenuShell *menu = (GtkMenuShell *) gtk_menu_new();
   for (; m != NULL && m->text != NULL; m++) {
     GtkWidget *item;
     if (strcmp(m->text, "-") == 0) {
       item = gtk_separator_menu_item_new();
-    }
-    else {
+    } else {
       if (m->submenu != NULL) {
         item = gtk_menu_item_new_with_label(m->text);
-        gtk_menu_item_set_submenu(GTK_MENU_ITEM(item),
-          GTK_WIDGET(_tray_menu(m->submenu)));
-      }
-      else if (m->checkbox) {
+        gtk_menu_item_set_submenu(GTK_MENU_ITEM(item), GTK_WIDGET(_tray_menu(m->submenu)));
+      } else if (m->checkbox) {
         item = gtk_check_menu_item_new_with_label(m->text);
         gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(item), !!m->checked);
-      }
-      else {
+      } else {
         item = gtk_menu_item_new_with_label(m->text);
       }
       gtk_widget_set_sensitive(item, !m->disabled);
@@ -68,28 +63,26 @@ _tray_menu(struct tray_menu *m) {
   return menu;
 }
 
-int
-tray_init(struct tray *tray) {
+int tray_init(struct tray *tray) {
   if (gtk_init_check(0, NULL) == FALSE) {
     return -1;
   }
   notify_init("tray-icon");
-  indicator = app_indicator_new(TRAY_APPINDICATOR_ID, tray->icon,
-    APP_INDICATOR_CATEGORY_APPLICATION_STATUS);
-  if (indicator == NULL || !IS_APP_INDICATOR(indicator)) return -1;
+  indicator = app_indicator_new(TRAY_APPINDICATOR_ID, tray->icon, APP_INDICATOR_CATEGORY_APPLICATION_STATUS);
+  if (indicator == NULL || !IS_APP_INDICATOR(indicator)) {
+    return -1;
+  }
   app_indicator_set_status(indicator, APP_INDICATOR_STATUS_ACTIVE);
   tray_update(tray);
   return 0;
 }
 
-int
-tray_loop(int blocking) {
+int tray_loop(int blocking) {
   gtk_main_iteration_do(blocking);
   return loop_result;
 }
 
-static gboolean
-tray_update_internal(gpointer user_data) {
+static gboolean tray_update_internal(gpointer user_data) {
   struct tray *tray = user_data;
 
   if (indicator != NULL && IS_APP_INDICATOR(indicator)) {
@@ -121,8 +114,7 @@ tray_update_internal(gpointer user_data) {
   return G_SOURCE_REMOVE;
 }
 
-void
-tray_update(struct tray *tray) {
+void tray_update(struct tray *tray) {
   // Perform the tray update on the tray loop thread, but block
   // in this thread to ensure none of the strings stored in the
   // tray icon struct go out of scope before the callback runs.
@@ -130,8 +122,7 @@ tray_update(struct tray *tray) {
   if (g_main_context_is_owner(g_main_context_default())) {
     // Invoke the callback directly if we're on the loop thread
     tray_update_internal(tray);
-  }
-  else {
+  } else {
     // If there's already an update pending, wait for it to complete
     // and claim the next pending update slot.
     pthread_mutex_lock(&async_update_mutex);
@@ -153,18 +144,18 @@ tray_update(struct tray *tray) {
   }
 }
 
-static gboolean
-tray_exit_internal(gpointer user_data) {
+static gboolean tray_exit_internal(gpointer user_data) {
   if (currentNotification != NULL && NOTIFY_IS_NOTIFICATION(currentNotification)) {
     int v = notify_notification_close(currentNotification, NULL);
-    if (v == TRUE) g_object_unref(G_OBJECT(currentNotification));
+    if (v == TRUE) {
+      g_object_unref(G_OBJECT(currentNotification));
+    }
   }
   notify_uninit();
   return G_SOURCE_REMOVE;
 }
 
-void
-tray_exit(void) {
+void tray_exit(void) {
   // Wait for any pending callbacks to complete
   pthread_mutex_lock(&async_update_mutex);
   while (async_update_pending) {
