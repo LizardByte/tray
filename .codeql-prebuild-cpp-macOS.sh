@@ -2,7 +2,7 @@
 set -e
 
 # install dependencies
-brew install \
+arch -arm64 brew install \
   cmake \
   ninja
 
