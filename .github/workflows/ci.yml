@@ -112,8 +112,7 @@ jobs:
             # Doxygen from Ubuntu is too old, need Doxygen >= 1.10
             DOCS=OFF
           else
-            # Doxygen 1.13 is incompatible with doxygen-awesome-css
-            DOCS=OFF
+            DOCS=ON
           fi
 
           cmake \
