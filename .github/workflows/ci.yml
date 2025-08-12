@@ -126,6 +126,8 @@ jobs:
 
       - name: Run tests
         id: test
+        # TODO: tests randomly hang on Linux, https://github.com/LizardByte/tray/issues/45
+        timeout-minutes: 1
         working-directory: build/tests
         run: |
           if [ "${{ runner.os }}" = "Linux" ]; then
