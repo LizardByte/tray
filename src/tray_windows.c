@@ -36,7 +36,7 @@ enum IconType {
 };
 
 static WNDCLASSEX wc;
-static NOTIFYICONDATA nid;
+static NOTIFYICONDATAW nid;
 static HWND hwnd;
 static HMENU hmenu = NULL;
 static void (*notification_cb)() = 0;
@@ -83,7 +83,7 @@ static LRESULT CALLBACK _tray_wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARA
   }
 
   if (msg == wm_taskbarcreated) {
-    Shell_NotifyIcon(NIM_ADD, &nid);
+    Shell_NotifyIconW(NIM_ADD, &nid);
     return 0;
   }
 
@@ -94,11 +94,11 @@ static HMENU _tray_menu(struct tray_menu *m, UINT *id) {
   HMENU hmenu = CreatePopupMenu();
   for (; m != NULL && m->text != NULL; m++, (*id)++) {
     if (strcmp(m->text, "-") == 0) {
-      InsertMenu(hmenu, *id, MF_SEPARATOR, TRUE, "");
+      InsertMenuW(hmenu, *id, MF_SEPARATOR, TRUE, L"");
     } else {
-      MENUITEMINFO item;
+      MENUITEMINFOW item;
       memset(&item, 0, sizeof(item));
-      item.cbSize = sizeof(MENUITEMINFO);
+      item.cbSize = sizeof(MENUITEMINFOW);
       item.fMask = MIIM_ID | MIIM_TYPE | MIIM_STATE | MIIM_DATA;
       item.fType = 0;
       item.fState = 0;
@@ -113,10 +113,19 @@ static HMENU _tray_menu(struct tray_menu *m, UINT *id) {
         item.fState |= MFS_CHECKED;
       }
       item.wID = *id;
-      item.dwTypeData = (LPSTR) m->text;
+      
+      // Convert UTF-8 text to UTF-16 (wide string)
+      int wide_size = MultiByteToWideChar(CP_UTF8, 0, m->text, -1, NULL, 0);
+      wchar_t *wide_text = (wchar_t *)malloc(wide_size * sizeof(wchar_t));
+      MultiByteToWideChar(CP_UTF8, 0, m->text, -1, wide_text, wide_size);
+      
+      item.dwTypeData = wide_text;
       item.dwItemData = (ULONG_PTR) m;
 
-      InsertMenuItem(hmenu, *id, TRUE, &item);
+      InsertMenuItemW(hmenu, *id, TRUE, &item);
+      
+      // Free the allocated wide string
+      free(wide_text);
     }
   }
   return hmenu;
@@ -231,12 +240,12 @@ int tray_init(struct tray *tray) {
   UpdateWindow(hwnd);
 
   memset(&nid, 0, sizeof(nid));
-  nid.cbSize = sizeof(NOTIFYICONDATA);
+  nid.cbSize = sizeof(NOTIFYICONDATAW);
   nid.hWnd = hwnd;
   nid.uID = 0;
   nid.uFlags = NIF_ICON | NIF_MESSAGE;
   nid.uCallbackMessage = WM_TRAY_CALLBACK_MESSAGE;
-  Shell_NotifyIcon(NIM_ADD, &nid);
+  Shell_NotifyIconW(NIM_ADD, &nid);
 
   tray_update(tray);
   return 0;
@@ -275,28 +284,28 @@ void tray_update(struct tray *tray) {
     nid.dwInfoFlags = NIIF_USER | NIIF_LARGE_ICON;
   }
   if (tray->tooltip != 0 && strlen(tray->tooltip) > 0) {
-    strncpy(nid.szTip, tray->tooltip, sizeof(nid.szTip));
+    MultiByteToWideChar(CP_UTF8, 0, tray->tooltip, -1, nid.szTip, sizeof(nid.szTip) / sizeof(wchar_t));
     nid.uFlags |= NIF_TIP;
   }
   QUERY_USER_NOTIFICATION_STATE notification_state;
   HRESULT ns = SHQueryUserNotificationState(&notification_state);
   int can_show_notifications = ns == S_OK && notification_state == QUNS_ACCEPTS_NOTIFICATIONS;
   if (can_show_notifications == 1 && tray->notification_title != 0 && strlen(tray->notification_title) > 0) {
-    strncpy(nid.szInfoTitle, tray->notification_title, sizeof(nid.szInfoTitle));
+    MultiByteToWideChar(CP_UTF8, 0, tray->notification_title, -1, nid.szInfoTitle, sizeof(nid.szInfoTitle) / sizeof(wchar_t));
     nid.uFlags |= NIF_INFO;
   } else if ((nid.uFlags & NIF_INFO) == NIF_INFO) {
-    strncpy(nid.szInfoTitle, "", sizeof(nid.szInfoTitle));
+    nid.szInfoTitle[0] = L'\0';
   }
   if (can_show_notifications == 1 && tray->notification_text != 0 && strlen(tray->notification_text) > 0) {
-    strncpy(nid.szInfo, tray->notification_text, sizeof(nid.szInfo));
+    MultiByteToWideChar(CP_UTF8, 0, tray->notification_text, -1, nid.szInfo, sizeof(nid.szInfo) / sizeof(wchar_t));
   } else if ((nid.uFlags & NIF_INFO) == NIF_INFO) {
-    strncpy(nid.szInfo, "", sizeof(nid.szInfo));
+    nid.szInfo[0] = L'\0';
   }
   if (can_show_notifications == 1 && tray->notification_cb != NULL) {
     notification_cb = tray->notification_cb;
   }
 
-  Shell_NotifyIcon(NIM_MODIFY, &nid);
+  Shell_NotifyIconW(NIM_MODIFY, &nid);
 
   if (prevmenu != NULL) {
     DestroyMenu(prevmenu);
@@ -304,7 +313,7 @@ void tray_update(struct tray *tray) {
 }
 
 void tray_exit(void) {
-  Shell_NotifyIcon(NIM_DELETE, &nid);
+  Shell_NotifyIconW(NIM_DELETE, &nid);
   _destroy_icon_cache();
   if (hmenu != 0) {
     DestroyMenu(hmenu);
