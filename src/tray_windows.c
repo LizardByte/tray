@@ -113,17 +113,17 @@ static HMENU _tray_menu(struct tray_menu *m, UINT *id) {
         item.fState |= MFS_CHECKED;
       }
       item.wID = *id;
-      
+
       // Convert UTF-8 text to UTF-16 (wide string)
       int wide_size = MultiByteToWideChar(CP_UTF8, 0, m->text, -1, NULL, 0);
-      wchar_t *wide_text = (wchar_t *)malloc(wide_size * sizeof(wchar_t));
+      wchar_t *wide_text = (wchar_t *) malloc(wide_size * sizeof(wchar_t));
       MultiByteToWideChar(CP_UTF8, 0, m->text, -1, wide_text, wide_size);
-      
+
       item.dwTypeData = wide_text;
       item.dwItemData = (ULONG_PTR) m;
 
       InsertMenuItemW(hmenu, *id, TRUE, &item);
-      
+
       // Free the allocated wide string
       free(wide_text);
     }
