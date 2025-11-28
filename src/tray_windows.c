@@ -317,10 +317,10 @@ void tray_update(struct tray *tray) {
 
 void tray_exit(void) {
   Shell_NotifyIconW(NIM_DELETE, &nid);
+  SendMessage(hwnd, WM_CLOSE, 0, 0);
   _destroy_icon_cache();
   if (hmenu != 0) {
     DestroyMenu(hmenu);
   }
-  PostQuitMessage(0);
   UnregisterClass(WC_TRAY_CLASS_NAME, GetModuleHandle(NULL));
 }
