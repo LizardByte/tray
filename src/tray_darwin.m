@@ -40,6 +40,8 @@ static NSApplication *app;
 static NSStatusBar *statusBar;
 static NSStatusItem *statusItem;
 
+#define QUIT_EVENT_SUBTYPE 0x0DED  ///< NSEvent subtype used to signal exit.
+
 static NSMenu *_tray_menu(struct tray_menu *m) {
   NSMenu *menu = [[NSMenu alloc] init];
   [menu setAutoenablesItems:FALSE];
@@ -82,6 +84,10 @@ int tray_loop(int blocking) {
                                        inMode:[NSString stringWithUTF8String:"kCFRunLoopDefaultMode"]
                                       dequeue:TRUE];
   if (event) {
+    if (event.type == NSEventTypeApplicationDefined && event.subtype == QUIT_EVENT_SUBTYPE) {
+      return -1;
+    }
+
     [app sendEvent:event];
   }
   return 0;
@@ -96,5 +102,14 @@ void tray_update(struct tray *tray) {
 }
 
 void tray_exit(void) {
-  [app terminate:app];
+  NSEvent *event = [NSEvent otherEventWithType:NSEventTypeApplicationDefined
+                                      location:NSMakePoint(0, 0)
+                                 modifierFlags:0
+                                     timestamp:0
+                                  windowNumber:0
+                                       context:nil
+                                       subtype:QUIT_EVENT_SUBTYPE
+                                         data1:0
+                                         data2:0];
+  [app postEvent:event atStart:FALSE];
 }
