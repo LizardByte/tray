@@ -72,7 +72,7 @@ jobs:
 
       - name: Setup Dependencies Windows
         if: runner.os == 'Windows'
-        uses: msys2/setup-msys2@v2
+        uses: msys2/setup-msys2@fb197b72ce45fb24f17bf3f807a388985654d1f2  # v2.29.0
         with:
           msystem: ucrt64
           update: true
@@ -173,7 +173,7 @@ jobs:
           always() &&
           (steps.test.outcome == 'success' || steps.test.outcome == 'failure') &&
           startsWith(github.repository, 'LizardByte/')
-        uses: codecov/test-results-action@v1
+        uses: codecov/test-results-action@47f89e9acb64b76debcd5ea40642d25a4adced9f  # v1.1.1
         with:
           disable_search: true
           fail_ci_if_error: true
@@ -189,7 +189,7 @@ jobs:
           always() &&
           steps.test_report.outcome == 'success' &&
           startsWith(github.repository, 'LizardByte/')
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7  # v5.5.1
         with:
           disable_search: true
           fail_ci_if_error: true
