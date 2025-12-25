@@ -1,0 +1,58 @@
+---
+name: Publish Screenshots
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  publish:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: screenshots
+          pattern: tray-screenshots-*
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Debug screenshots
+        run: ls -R screenshots
+
+      - name: Determine Branch and Path
+        id: determine
+        env:
+          PULL_REQUEST_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          if [ -n "${PULL_REQUEST_NUMBER}" ]; then
+            PR_NUMBER=${PULL_REQUEST_NUMBER}
+            BRANCH_PATH="PR-${PULL_REQUEST_NUMBER}"
+            is_pr=true
+          else
+            BRANCH_NAME=$(echo "${HEAD_BRANCH}" | sed 's/\//-/g')
+            BRANCH_PATH="${BRANCH_NAME}"
+            is_pr=false
+          fi
+
+          {
+            echo "branch_path=${BRANCH_PATH}"
+            echo "is_pr=${is_pr}"
+            echo "pr_number=${PR_NUMBER}"
+          } >> "${GITHUB_OUTPUT}"
+
+          # debug outputs
+          cat "${GITHUB_OUTPUT}"
+
+      - name: Checkout Screenshots Branch
+        uses: actions/checkout@v6
+        with:
+          ref: screenshots
+          path: screenshots-repo
