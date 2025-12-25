@@ -67,6 +67,7 @@ int tray_init(struct tray *tray) {
   if (gtk_init_check(0, NULL) == FALSE) {
     return -1;
   }
+  loop_result = 0;
   notify_init("tray-icon");
   indicator = app_indicator_new(TRAY_APPINDICATOR_ID, tray->icon, APP_INDICATOR_CATEGORY_APPLICATION_STATUS);
   if (indicator == NULL || !IS_APP_INDICATOR(indicator)) {

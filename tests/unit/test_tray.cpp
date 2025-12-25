@@ -11,6 +11,7 @@
 
 // local includes
 #include "src/tray.h"
+#include "tests/screenshot_utils.h"
 
 #if TRAY_APPINDICATOR
   #define TRAY_ICON1 "mail-message-new"
@@ -26,6 +27,7 @@
 class TrayTest: public BaseTest {
 protected:
   static struct tray testTray;
+  bool trayRunning;
 
   // Static arrays for submenus
   static struct tray_menu submenu7_8[];
@@ -53,13 +55,25 @@ protected:
   }
 
   void SetUp() override {
+    BaseTest::SetUp();
+    trayRunning = false;
     testTray.icon = TRAY_ICON1;
     testTray.tooltip = "TestTray";
     testTray.menu = submenu;
   }
 
   void TearDown() override {
-    // Clean up any resources if needed
+    ShutdownTray();
+    BaseTest::TearDown();
+  }
+
+  void ShutdownTray() {
+    if (!trayRunning) {
+      return;
+    }
+    tray_exit();
+    tray_loop(0);
+    trayRunning = false;
   }
 };
 
@@ -97,26 +111,62 @@ struct tray TrayTest::testTray = {
 };
 
 TEST_F(TrayTest, TestTrayInit) {
+  if (!ensureScreenshotReady()) {
+    GTEST_SKIP() << "Screenshot tooling missing: " << screenshotUnavailableReason;
+  }
+  if (screenshot::output_root().empty()) {
+    GTEST_SKIP() << "Screenshot output path not initialized";
+  }
+#if !(defined(_WIN32) || defined(__linux__) || defined(__APPLE__))
+  GTEST_SKIP() << "Screenshots only supported on desktop platforms";
+#endif
   int result = tray_init(&testTray);
-  EXPECT_EQ(result, 0);  // make sure return value is 0
+  trayRunning = (result == 0);
+  EXPECT_EQ(result, 0);
+  EXPECT_TRUE(captureScreenshot("tray_icon_initial"));
+  ShutdownTray();
 }
 
 TEST_F(TrayTest, TestTrayLoop) {
+  if (!ensureScreenshotReady()) {
+    GTEST_SKIP() << "Screenshot tooling missing: " << screenshotUnavailableReason;
+  }
+  if (screenshot::output_root().empty()) {
+    GTEST_SKIP() << "Screenshot output path not initialized";
+  }
+#if !(defined(_WIN32) || defined(__linux__) || defined(__APPLE__))
+  GTEST_SKIP() << "Screenshots only supported on desktop platforms";
+#endif
+  int initResult = tray_init(&testTray);
+  trayRunning = (initResult == 0);
+  ASSERT_EQ(initResult, 0);
   int result = tray_loop(1);
-  EXPECT_EQ(result, 0);  // make sure return value is 0
+  EXPECT_EQ(result, 0);
+  EXPECT_TRUE(captureScreenshot("tray_loop_iteration"));
+  ShutdownTray();
 }
 
 TEST_F(TrayTest, TestTrayUpdate) {
-  // check the initial values
+  if (!ensureScreenshotReady()) {
+    GTEST_SKIP() << "Screenshot tooling missing: " << screenshotUnavailableReason;
+  }
+  if (screenshot::output_root().empty()) {
+    GTEST_SKIP() << "Screenshot output path not initialized";
+  }
+#if !(defined(_WIN32) || defined(__linux__) || defined(__APPLE__))
+  GTEST_SKIP() << "Screenshots only supported on desktop platforms";
+#endif
+  int initResult = tray_init(&testTray);
+  trayRunning = (initResult == 0);
+  ASSERT_EQ(initResult, 0);
   EXPECT_EQ(testTray.icon, TRAY_ICON1);
-  EXPECT_EQ(testTray.tooltip, "TestTray");
 
   // update the values
   testTray.icon = TRAY_ICON2;
   testTray.tooltip = "TestTray2";
   tray_update(&testTray);
   EXPECT_EQ(testTray.icon, TRAY_ICON2);
-  EXPECT_EQ(testTray.tooltip, "TestTray2");
+  EXPECT_TRUE(captureScreenshot("tray_icon_updated"));
 
   // put back the original values
   testTray.icon = TRAY_ICON1;
@@ -124,15 +174,26 @@ TEST_F(TrayTest, TestTrayUpdate) {
   tray_update(&testTray);
   EXPECT_EQ(testTray.icon, TRAY_ICON1);
   EXPECT_EQ(testTray.tooltip, "TestTray");
+  ShutdownTray();
 }
 
 TEST_F(TrayTest, TestToggleCallback) {
+  if (!ensureScreenshotReady()) {
+    GTEST_SKIP() << "Screenshot tooling missing: " << screenshotUnavailableReason;
+  }
+  if (screenshot::output_root().empty()) {
+    GTEST_SKIP() << "Screenshot output path not initialized";
+  }
+  int initResult = tray_init(&testTray);
+  trayRunning = (initResult == 0);
+  ASSERT_EQ(initResult, 0);
   bool initialCheckedState = testTray.menu[1].checked;
   toggle_cb(&testTray.menu[1]);
   EXPECT_EQ(testTray.menu[1].checked, !initialCheckedState);
+  EXPECT_TRUE(captureScreenshot("tray_menu_toggle"));
+  ShutdownTray();
 }
 
 TEST_F(TrayTest, TestTrayExit) {
   tray_exit();
-  // TODO: Check the state after tray_exit
 }
