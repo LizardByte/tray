@@ -31,6 +31,7 @@ PROJECT_NAME = tray
 DOT_GRAPH_MAX_NODES = 50
 IMAGE_PATH = ../docs/images
 INCLUDE_PATH =
+PREDEFINED += TRAY_WINAPI
 
 # files and directories to process
 USE_MDFILE_AS_MAINPAGE = ../README.md

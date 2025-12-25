@@ -5,6 +5,10 @@
 #ifndef TRAY_H
 #define TRAY_H
 
+#if defined(TRAY_WINAPI)
+  #include <Windows.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -65,9 +69,22 @@ extern "C" {
   void tray_update(struct tray *tray);
 
   /**
+   * @brief Force show the tray menu (for testing purposes).
+   */
+  void tray_show_menu(void);
+
+  /**
    * @brief Terminate UI loop.
    */
   void tray_exit(void);
+
+#if defined(TRAY_WINAPI)
+  /**
+   * @brief Get the tray window handle.
+   * @return The window handle.
+   */
+  HWND tray_get_hwnd(void);
+#endif
 
 #ifdef __cplusplus
 }  // extern "C"
