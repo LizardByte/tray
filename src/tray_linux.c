@@ -29,6 +29,7 @@ static pthread_mutex_t async_update_mutex = PTHREAD_MUTEX_INITIALIZER;
 static AppIndicator *indicator = NULL;
 static int loop_result = 0;
 static NotifyNotification *currentNotification = NULL;
+static GtkMenu *current_menu = NULL;
 
 static void _tray_menu_cb(GtkMenuItem *item, gpointer data) {
   (void) item;
@@ -67,6 +68,7 @@ int tray_init(struct tray *tray) {
   if (gtk_init_check(0, NULL) == FALSE) {
     return -1;
   }
+  loop_result = 0;
   notify_init("tray-icon");
   indicator = app_indicator_new(TRAY_APPINDICATOR_ID, tray->icon, APP_INDICATOR_CATEGORY_APPLICATION_STATUS);
   if (indicator == NULL || !IS_APP_INDICATOR(indicator)) {
@@ -89,7 +91,13 @@ static gboolean tray_update_internal(gpointer user_data) {
     app_indicator_set_icon_full(indicator, tray->icon, tray->icon);
     // GTK is all about reference counting, so previous menu should be destroyed
     // here
-    app_indicator_set_menu(indicator, GTK_MENU(_tray_menu(tray->menu)));
+    GtkMenu *menu = GTK_MENU(_tray_menu(tray->menu));
+    app_indicator_set_menu(indicator, menu);
+    if (current_menu != NULL) {
+      g_object_unref(current_menu);
+    }
+    current_menu = menu;
+    g_object_ref(current_menu);  // Keep a reference for showing
   }
   if (tray->notification_text != 0 && strlen(tray->notification_text) > 0 && notify_is_initted()) {
     if (currentNotification != NULL && NOTIFY_IS_NOTIFICATION(currentNotification)) {
@@ -141,6 +149,12 @@ void tray_update(struct tray *tray) {
       pthread_cond_wait(&async_update_cv, &async_update_mutex);
     }
     pthread_mutex_unlock(&async_update_mutex);
+  }
+}
+
+void tray_show_menu(void) {
+  if (current_menu != NULL) {
+    gtk_menu_popup(current_menu, NULL, NULL, NULL, NULL, 0, gtk_get_current_event_time());
   }
 }
 
