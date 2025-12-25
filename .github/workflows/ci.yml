@@ -54,9 +54,14 @@ jobs:
             build-essential \
             cmake \
             ${{ matrix.appindicator }} \
+            dbus-x11 \
             libglib2.0-dev \
             libnotify-dev \
             ninja-build \
+            xfce4-panel \
+            openbox \
+            imagemagick \
+            gnome-screenshot \
             xvfb
 
       - name: Setup Dependencies macOS
@@ -67,6 +72,7 @@ jobs:
             cmake \
             doxygen \
             graphviz \
+            imagemagick \
             ninja \
             node
 
@@ -81,6 +87,7 @@ jobs:
             mingw-w64-ucrt-x86_64-binutils
             mingw-w64-ucrt-x86_64-cmake
             mingw-w64-ucrt-x86_64-graphviz
+            mingw-w64-ucrt-x86_64-imagemagick
             mingw-w64-ucrt-x86_64-ninja
             mingw-w64-ucrt-x86_64-nodejs
             mingw-w64-ucrt-x86_64-toolchain
@@ -132,10 +139,36 @@ jobs:
         run: |
           if [ "${{ runner.os }}" = "Linux" ]; then
             export DISPLAY=:1
-            Xvfb ${DISPLAY} -screen 0 1024x768x24 &
+            Xvfb ${DISPLAY} -screen 0 1920x1080x24 &
+            XVFB_PID=$!
+            sleep 2
+            dbus-run-session -- bash -c '
+              openbox --config-file /etc/xdg/openbox/rc.xml &
+              WM_PID=$!
+              xfce4-panel --disable-wm-check &
+              PANEL_PID=$!
+              sleep 8
+              ./test_tray --gtest_color=yes --gtest_output=xml:test_results.xml
+              status=$?
+              kill ${PANEL_PID} ${WM_PID} >/dev/null 2>&1 || true
+              exit ${status}
+            '
+            status=$?
+            kill ${XVFB_PID} >/dev/null 2>&1 || true
+            exit ${status}
+          else
+            ./test_tray --gtest_color=yes --gtest_output=xml:test_results.xml
           fi
 
-          ./test_tray --gtest_color=yes --gtest_output=xml:test_results.xml
+      - name: Upload screenshots
+        if: >-
+          always() &&
+          (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
+        uses: actions/upload-artifact@v6
+        with:
+          name: tray-screenshots-${{ runner.os }}${{ matrix.appindicator && format('-{0}', matrix.appindicator) || '' }}
+          path: build/tests/screenshots
+          if-no-files-found: error
 
       - name: Generate gcov report
         id: test_report
