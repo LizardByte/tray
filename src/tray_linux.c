@@ -4,8 +4,10 @@
  */
 // standard includes
 #include <stdbool.h>
+#include <stdio.h>
 #include <stddef.h>
 #include <string.h>
+#include <unistd.h>
 
 // lib includes
 #ifdef TRAY_AYATANA_APPINDICATOR
@@ -17,7 +19,10 @@
   #define IS_APP_INDICATOR APP_IS_INDICATOR  ///< Define IS_APP_INDICATOR for app-indicator compatibility.
 #endif
 #include <libnotify/notify.h>
-#define TRAY_APPINDICATOR_ID "tray-id"  ///< Tray appindicator ID.
+
+// Use a per-process AppIndicator id to avoid DBus collisions when tests create multiple
+// tray instances in the same desktop/session.
+static unsigned long tray_appindicator_seq = 0;
 
 // local includes
 #include "tray.h"
@@ -68,9 +73,23 @@ int tray_init(struct tray *tray) {
   if (gtk_init_check(0, NULL) == FALSE) {
     return -1;
   }
+
+  // If a previous tray instance wasn't fully torn down (common in unit tests),
+  // drop our references before creating a new indicator.
+  if (indicator != NULL) {
+    g_object_unref(G_OBJECT(indicator));
+    indicator = NULL;
+  }
   loop_result = 0;
   notify_init("tray-icon");
-  indicator = app_indicator_new(TRAY_APPINDICATOR_ID, tray->icon, APP_INDICATOR_CATEGORY_APPLICATION_STATUS);
+  // The id is used as part of the exported DBus object path.
+  // Make it unique per *tray instance* to prevent collisions inside a single test process.
+  // Avoid underscores and other characters that may be normalized/stripped.
+  char appindicator_id[64];
+  tray_appindicator_seq++;
+  snprintf(appindicator_id, sizeof(appindicator_id), "trayid%ld%lu", (long) getpid(), tray_appindicator_seq);
+
+  indicator = app_indicator_new(appindicator_id, tray->icon, APP_INDICATOR_CATEGORY_APPLICATION_STATUS);
   if (indicator == NULL || !IS_APP_INDICATOR(indicator)) {
     return -1;
   }
@@ -159,11 +178,26 @@ void tray_show_menu(void) {
 }
 
 static gboolean tray_exit_internal(gpointer user_data) {
+  (void) user_data;
+
   if (currentNotification != NULL && NOTIFY_IS_NOTIFICATION(currentNotification)) {
     int v = notify_notification_close(currentNotification, NULL);
     if (v == TRUE) {
       g_object_unref(G_OBJECT(currentNotification));
     }
+    currentNotification = NULL;
+  }
+
+  if (current_menu != NULL) {
+    g_object_unref(current_menu);
+    current_menu = NULL;
+  }
+
+  if (indicator != NULL) {
+    // Make the indicator passive before unref to encourage a clean DBus unexport.
+    app_indicator_set_status(indicator, APP_INDICATOR_STATUS_PASSIVE);
+    g_object_unref(G_OBJECT(indicator));
+    indicator = NULL;
   }
   notify_uninit();
   return G_SOURCE_REMOVE;
