@@ -54,10 +54,92 @@ jobs:
             build-essential \
             cmake \
             ${{ matrix.appindicator }} \
+            imagemagick \
             libglib2.0-dev \
             libnotify-dev \
             ninja-build \
             xvfb
+
+      - name: Setup virtual desktop
+        if: runner.os == 'Linux'
+        uses: LizardByte/actions/actions/setup_virtual_desktop@feat/actions/linux-display  # todo: pin version
+        with:
+          environment: mate
+
+      - name: Debug AppIndicator environment
+        if: runner.os == 'Linux'
+        run: |
+          echo "=== AppIndicator Debug Information ==="
+          echo ""
+          echo "1. Checking if indicator service is running:"
+          ps aux | grep -E "(ayatana-indicator|indicator-application)" | grep -v grep || \
+            echo "  No indicator service found"
+          echo ""
+          echo "2. D-Bus session:"
+          echo "  DBUS_SESSION_BUS_ADDRESS: ${DBUS_SESSION_BUS_ADDRESS:-NOT SET}"
+          echo ""
+          echo "3. D-Bus services:"
+          dbus-send --session --dest=org.freedesktop.DBus --print-reply /org/freedesktop/DBus \
+            org.freedesktop.DBus.ListNames 2>/dev/null | grep -i indicator || \
+            echo "  No indicator service on D-Bus"
+          echo ""
+          echo "4. GObject Introspection typelibs:"
+          ls -la /usr/lib/x86_64-linux-gnu/girepository-1.0/ | grep -i indicator || \
+            echo "  No indicator typelibs found"
+          echo ""
+          echo "5. Panel processes:"
+          ps aux | grep -E "(mate-panel|xfce4-panel)" | grep -v grep || \
+            echo "  No panel found"
+          echo ""
+          echo "6. DISPLAY: ${DISPLAY:-NOT SET}"
+          echo ""
+          echo "7. Installed AppIndicator packages:"
+          dpkg -l | grep -E "(appindicator|ayatana)" || \
+            echo "  No AppIndicator packages found"
+          echo ""
+
+      - name: Test AppIndicator with Python
+        if: runner.os == 'Linux'
+        run: |
+          echo "Testing if AppIndicator works with Python..."
+          cat > test_indicator_simple.py << 'EOF'
+          import gi
+          import sys
+          gi.require_version('AyatanaAppIndicator3', '0.1')
+          from gi.repository import AyatanaAppIndicator3 as AppIndicator
+          from gi.repository import Gtk, GLib
+
+          print("Creating indicator...")
+          indicator = AppIndicator.Indicator.new(
+              "test-indicator",
+              "mail-message-new",
+              AppIndicator.IndicatorCategory.APPLICATION_STATUS
+          )
+          print("Setting status to ACTIVE...")
+          indicator.set_status(AppIndicator.IndicatorStatus.ACTIVE)
+          indicator.set_title("Test Indicator")
+
+          menu = Gtk.Menu()
+          item = Gtk.MenuItem(label="Quit")
+          item.connect("activate", Gtk.main_quit)
+          menu.append(item)
+          item.show()
+          indicator.set_menu(menu)
+
+          print("Indicator created successfully!")
+          print("Running for 2 seconds...")
+          GLib.timeout_add_seconds(2, Gtk.main_quit)
+          Gtk.main()
+          print("Test completed successfully!")
+          EOF
+
+          python3 test_indicator_simple.py
+          if [ $? -eq 0 ]; then
+            echo "✓ AppIndicator Python test passed"
+          else
+            echo "✗ AppIndicator Python test failed"
+            exit 1
+          fi
 
       - name: Setup Dependencies macOS
         if: runner.os == 'macOS'
@@ -67,6 +149,7 @@ jobs:
             cmake \
             doxygen \
             graphviz \
+            imagemagick \
             ninja \
             node
 
@@ -81,6 +164,7 @@ jobs:
             mingw-w64-ucrt-x86_64-binutils
             mingw-w64-ucrt-x86_64-cmake
             mingw-w64-ucrt-x86_64-graphviz
+            mingw-w64-ucrt-x86_64-imagemagick
             mingw-w64-ucrt-x86_64-ninja
             mingw-w64-ucrt-x86_64-nodejs
             mingw-w64-ucrt-x86_64-toolchain
@@ -103,7 +187,7 @@ jobs:
 
           # step output
           echo "python-path=${python_path}"
-          echo "python-path=${python_path}" >> $GITHUB_OUTPUT
+          echo "python-path=${python_path}" >> "${GITHUB_OUTPUT}"
 
       - name: Build
         run: |
@@ -124,18 +208,57 @@ jobs:
             -S .
           ninja -C build
 
+      - name: Init tray icon (Windows)
+        if: runner.os == 'Windows'
+        working-directory: build/tests
+        run: ./test_tray --gtest_color=yes --gtest_filter=TrayTest.TestTrayInit
+
+      - name: Configure Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          echo "::group::Enable all tray icons"
+          Invoke-WebRequest `
+            -Uri "https://raw.githubusercontent.com/paulmann/windows-show-all-tray-icons/main/Enable-AllTrayIcons.ps1" `
+            -OutFile "Enable-AllTrayIcons.ps1"
+          .\Enable-AllTrayIcons.ps1 -Action Enable -Force  # Enable with comprehensive method (resets ALL icon settings)
+          echo "::endgroup::"
+
+          echo "::group::Disable Do Not Disturb"
+          Add-Type -AssemblyName System.Windows.Forms
+          Start-Process "ms-settings:notifications"
+          Start-Sleep -Seconds 2
+          [System.Windows.Forms.SendKeys]::SendWait("{TAB}")
+          [System.Windows.Forms.SendKeys]::SendWait("{TAB}")
+          [System.Windows.Forms.SendKeys]::SendWait(" ")
+          echo "::endgroup::"
+
+          echo "::group::Minimize all windows"
+          $shell = New-Object -ComObject Shell.Application
+          $shell.MinimizeAll()
+          echo "::endgroup::"
+
+          echo "::group::Set Date - Hack for Quiet Time"
+          $newDate = (Get-Date).AddHours(2)
+          Set-Date -Date $newDate
+          echo "::endgroup::"
+
       - name: Run tests
         id: test
         # TODO: tests randomly hang on Linux, https://github.com/LizardByte/tray/issues/45
-        timeout-minutes: 1
+        timeout-minutes: 3
         working-directory: build/tests
-        run: |
-          if [ "${{ runner.os }}" = "Linux" ]; then
-            export DISPLAY=:1
-            Xvfb ${DISPLAY} -screen 0 1024x768x24 &
-          fi
+        run: ./test_tray --gtest_color=yes --gtest_output=xml:test_results.xml
 
-          ./test_tray --gtest_color=yes --gtest_output=xml:test_results.xml
+      - name: Upload screenshots
+        if: >-
+          always() &&
+          (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
+        uses: actions/upload-artifact@v6
+        with:
+          name: tray-screenshots-${{ runner.os }}${{ matrix.appindicator && format('-{0}', matrix.appindicator) || '' }}
+          path: build/tests/screenshots
+          if-no-files-found: error
 
       - name: Generate gcov report
         id: test_report
@@ -164,7 +287,7 @@ jobs:
           if [ -n "${{ matrix.appindicator }}" ]; then
               flags="${flags},${{ matrix.appindicator }}"
           fi
-          echo "flags=${flags}" >> $GITHUB_OUTPUT
+          echo "flags=${flags}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload coverage
         # any except canceled or skipped
