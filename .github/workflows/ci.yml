@@ -66,6 +66,81 @@ jobs:
         with:
           environment: mate
 
+      - name: Debug AppIndicator environment
+        if: runner.os == 'Linux'
+        run: |
+          echo "=== AppIndicator Debug Information ==="
+          echo ""
+          echo "1. Checking if indicator service is running:"
+          ps aux | grep -E "(ayatana-indicator|indicator-application)" | grep -v grep || \
+            echo "  No indicator service found"
+          echo ""
+          echo "2. D-Bus session:"
+          echo "  DBUS_SESSION_BUS_ADDRESS: ${DBUS_SESSION_BUS_ADDRESS:-NOT SET}"
+          echo ""
+          echo "3. D-Bus services:"
+          dbus-send --session --dest=org.freedesktop.DBus --print-reply /org/freedesktop/DBus \
+            org.freedesktop.DBus.ListNames 2>/dev/null | grep -i indicator || \
+            echo "  No indicator service on D-Bus"
+          echo ""
+          echo "4. GObject Introspection typelibs:"
+          ls -la /usr/lib/x86_64-linux-gnu/girepository-1.0/ | grep -i indicator || \
+            echo "  No indicator typelibs found"
+          echo ""
+          echo "5. Panel processes:"
+          ps aux | grep -E "(mate-panel|xfce4-panel)" | grep -v grep || \
+            echo "  No panel found"
+          echo ""
+          echo "6. DISPLAY: ${DISPLAY:-NOT SET}"
+          echo ""
+          echo "7. Installed AppIndicator packages:"
+          dpkg -l | grep -E "(appindicator|ayatana)" || \
+            echo "  No AppIndicator packages found"
+          echo ""
+
+      - name: Test AppIndicator with Python
+        if: runner.os == 'Linux'
+        run: |
+          echo "Testing if AppIndicator works with Python..."
+          cat > test_indicator_simple.py << 'EOF'
+          import gi
+          import sys
+          gi.require_version('AyatanaAppIndicator3', '0.1')
+          from gi.repository import AyatanaAppIndicator3 as AppIndicator
+          from gi.repository import Gtk, GLib
+
+          print("Creating indicator...")
+          indicator = AppIndicator.Indicator.new(
+              "test-indicator",
+              "mail-message-new",
+              AppIndicator.IndicatorCategory.APPLICATION_STATUS
+          )
+          print("Setting status to ACTIVE...")
+          indicator.set_status(AppIndicator.IndicatorStatus.ACTIVE)
+          indicator.set_title("Test Indicator")
+
+          menu = Gtk.Menu()
+          item = Gtk.MenuItem(label="Quit")
+          item.connect("activate", Gtk.main_quit)
+          menu.append(item)
+          item.show()
+          indicator.set_menu(menu)
+
+          print("Indicator created successfully!")
+          print("Running for 2 seconds...")
+          GLib.timeout_add_seconds(2, Gtk.main_quit)
+          Gtk.main()
+          print("Test completed successfully!")
+          EOF
+
+          python3 test_indicator_simple.py
+          if [ $? -eq 0 ]; then
+            echo "✓ AppIndicator Python test passed"
+          else
+            echo "✗ AppIndicator Python test failed"
+            exit 1
+          fi
+
       - name: Setup Dependencies macOS
         if: runner.os == 'macOS'
         run: |
