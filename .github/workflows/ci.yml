@@ -73,6 +73,77 @@ jobs:
             ninja \
             node
 
+      - name: Fix macOS screen recording permissions
+        if: runner.os == 'macOS'
+        run: |
+          # Grant screen recording permissions to prevent popup dialogs in CI
+          # This modifies the TCC (Transparency, Consent, and Control) database
+
+          # https://apple.stackexchange.com/questions/362865/macos-list-apps-authorized-for-full-disk-access
+          # https://github.com/actions/runner-images/issues/9529
+          # https://github.com/actions/runner-images/pull/9530
+
+          # Get macOS version
+          os_version=$(sw_vers -productVersion | cut -d '.' -f 1)
+          echo "macOS version: $os_version"
+
+          # function to execute sql query for each value
+          function execute_sql_query {
+            local value=$1
+            local dbPath=$2
+            echo "Executing SQL query for value: $value"
+            sudo sqlite3 "$dbPath" "INSERT OR IGNORE INTO access VALUES($value);"
+          }
+
+          # Find all provisioner paths and store them in an array
+          declare -a app_paths=()
+          while IFS= read -r line; do
+            app_paths+=("$line")
+          done < <(sudo find /opt /usr -name bash 2>/dev/null)
+          echo "Provisioner paths: ${app_paths[@]}"
+
+          # Create an empty array
+          declare -a values=()
+
+          # Loop through the provisioner paths and add them to the values array
+          for p_path in "${app_paths[@]}"; do
+            # Adjust the service name and other parameters as needed
+            values+=("'kTCCServiceAccessibility','${p_path}',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,NULL,1592919552")
+            values+=("'kTCCServiceScreenCapture','${p_path}',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,1687786159")
+          done
+          echo "Values: ${values[@]}"
+
+          # Adjust for Sonoma (macOS 14+) which has extra columns
+          if [[ "$os_version" -ge 14 ]]; then
+            echo "Adjusting for macOS Sonoma or later (extra TCC columns)"
+            # TCC access table in Sonoma has extra 4 columns: pid, pid_version, boot_uuid, last_reminded
+            for i in "${!values[@]}"; do
+              values[$i]="${values[$i]},NULL,NULL,'UNUSED',${values[$i]##*,}"
+            done
+          fi
+
+          # System and user TCC databases
+          dbPaths=(
+            "/Library/Application Support/com.apple.TCC/TCC.db"
+            "$HOME/Library/Application Support/com.apple.TCC/TCC.db"
+          )
+
+          # Execute SQL queries
+          for value in "${values[@]}"; do
+            for dbPath in "${dbPaths[@]}"; do
+              echo "Column names for $dbPath"
+              echo "-------------------"
+              sudo sqlite3 "$dbPath" "PRAGMA table_info(access);"
+              echo "Current permissions for $dbPath"
+              echo "-------------------"
+              sudo sqlite3 "$dbPath" "SELECT * FROM access WHERE service='kTCCServiceScreenCapture';"
+              execute_sql_query "$value" "$dbPath"
+              echo "Updated permissions for $dbPath"
+              echo "-------------------"
+              sudo sqlite3 "$dbPath" "SELECT * FROM access WHERE service='kTCCServiceScreenCapture';"
+            done
+          done
+
       - name: Setup Dependencies Windows
         if: runner.os == 'Windows'
         uses: msys2/setup-msys2@4f806de0a5a7294ffabaff804b38a9b435a73bda  # v2.30.0
