@@ -131,6 +131,18 @@ void tray_show_menu(void) {
 }
 
 void tray_exit(void) {
+  // Remove the status item from the status bar on the main thread
+  // NSStatusBar operations must be performed on the main thread
+  if (statusItem != nil) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+      if (statusItem != nil) {
+        [statusBar removeStatusItem:statusItem];
+        statusItem = nil;
+      }
+    });
+  }
+
+  // Post exit event
   NSEvent *event = [NSEvent otherEventWithType:NSEventTypeApplicationDefined
                                       location:NSMakePoint(0, 0)
                                  modifierFlags:0
