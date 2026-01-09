@@ -388,7 +388,6 @@ TEST_F(TrayTest, TestTooltipUpdate) {
 
   // Test initial tooltip
   EXPECT_STREQ(testTray.tooltip, "TestTray");
-  tray_loop(1);
   WaitForTrayReady();
   EXPECT_TRUE(captureScreenshot("tray_tooltip_initial"));
 
@@ -396,7 +395,6 @@ TEST_F(TrayTest, TestTooltipUpdate) {
   testTray.tooltip = "Updated Tooltip Text";
   tray_update(&testTray);
   EXPECT_STREQ(testTray.tooltip, "Updated Tooltip Text");
-  tray_loop(1);
   WaitForTrayReady();
   EXPECT_TRUE(captureScreenshot("tray_tooltip_updated"));
 
@@ -451,14 +449,12 @@ TEST_F(TrayTest, TestCheckboxStates) {
   // Test checkbox item
   EXPECT_EQ(testTray.menu[1].checkbox, 1);
   EXPECT_EQ(testTray.menu[1].checked, 1);
-  tray_loop(1);
   WaitForTrayReady();
   EXPECT_TRUE(captureScreenshot("tray_checkbox_checked"));
 
   // Toggle checkbox
   testTray.menu[1].checked = 0;
   tray_update(&testTray);
-  tray_loop(1);
   WaitForTrayReady();
   EXPECT_TRUE(captureScreenshot("tray_checkbox_unchecked"));
 
@@ -538,14 +534,12 @@ TEST_F(TrayTest, TestIconPathArray) {
 
   // Verify initial icon
   EXPECT_EQ(iconCacheTray->icon, TRAY_ICON1);
-  tray_loop(1);
   WaitForTrayReady();
   EXPECT_TRUE(captureScreenshot("tray_icon_cache_initial"));
 
   // Switch to cached icon
   iconCacheTray->icon = TRAY_ICON2;
   tray_update(iconCacheTray);
-  tray_loop(1);
   WaitForTrayReady();
   EXPECT_TRUE(captureScreenshot("tray_icon_cache_updated"));
   free(iconCacheTray);
@@ -556,13 +550,11 @@ TEST_F(TrayTest, TestIconPathArray) {
   ASSERT_EQ(initResult, 0);
 
   EXPECT_EQ(testTray.icon, TRAY_ICON1);
-  tray_loop(1);
   WaitForTrayReady();
   EXPECT_TRUE(captureScreenshot("tray_icon_cache_initial"));
 
   testTray.icon = TRAY_ICON2;
   tray_update(&testTray);
-  tray_loop(1);
   WaitForTrayReady();
   EXPECT_TRUE(captureScreenshot("tray_icon_cache_updated"));
 #endif
