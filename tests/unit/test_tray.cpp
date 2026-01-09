@@ -190,7 +190,8 @@ TEST_F(TrayTest, TestTrayLoop) {
   int initResult = tray_init(&testTray);
   trayRunning = (initResult == 0);
   ASSERT_EQ(initResult, 0);
-  int result = tray_loop(1);
+  // Test non-blocking loop (blocking=0) since blocking would hang without events
+  int result = tray_loop(0);
   EXPECT_EQ(result, 0);
   WaitForTrayReady();
   EXPECT_TRUE(captureScreenshot("tray_loop_iteration"));
@@ -237,7 +238,6 @@ TEST_F(TrayTest, TestMenuItemCallback) {
   // Test hello callback - it should work without crashing
   ASSERT_NE(testTray.menu[0].cb, nullptr);
   testTray.menu[0].cb(&testTray.menu[0]);
-  tray_loop(1);
   WaitForTrayReady();
   EXPECT_TRUE(captureScreenshot("tray_menu_callback_hello"));
 }
@@ -250,7 +250,6 @@ TEST_F(TrayTest, TestDisabledMenuItem) {
   // Verify disabled menu item
   EXPECT_EQ(testTray.menu[2].disabled, 1);
   EXPECT_STREQ(testTray.menu[2].text, "Disabled");
-  tray_loop(1);
   WaitForTrayReady();
   EXPECT_TRUE(captureScreenshot("tray_menu_disabled_item"));
 }
@@ -263,7 +262,6 @@ TEST_F(TrayTest, TestMenuSeparator) {
   // Verify separator exists
   EXPECT_STREQ(testTray.menu[3].text, "-");
   EXPECT_EQ(testTray.menu[3].cb, nullptr);
-  tray_loop(1);
   WaitForTrayReady();
   EXPECT_TRUE(captureScreenshot("tray_menu_with_separator"));
 }
@@ -282,7 +280,6 @@ TEST_F(TrayTest, TestSubmenuStructure) {
   ASSERT_NE(testTray.menu[4].submenu[0].submenu, nullptr);
   EXPECT_STREQ(testTray.menu[4].submenu[0].submenu[0].text, "7");
 
-  tray_loop(1);
   WaitForTrayReady();
   EXPECT_TRUE(captureScreenshot("tray_submenu_structure"));
 }
@@ -295,7 +292,6 @@ TEST_F(TrayTest, TestSubmenuCallback) {
   // Test submenu callback
   ASSERT_NE(testTray.menu[4].submenu[0].submenu[0].cb, nullptr);
   testTray.menu[4].submenu[0].submenu[0].cb(&testTray.menu[4].submenu[0].submenu[0]);
-  tray_loop(1);
   WaitForTrayReady();
   EXPECT_TRUE(captureScreenshot("tray_submenu_callback_executed"));
 }
@@ -323,7 +319,6 @@ TEST_F(TrayTest, TestNotificationDisplay) {
   testTray.notification_icon = TRAY_ICON1;
 
   tray_update(&testTray);
-  tray_loop(1);
 
   WaitForTrayReady();
   EXPECT_TRUE(captureScreenshot("tray_notification_displayed"));
@@ -364,7 +359,6 @@ TEST_F(TrayTest, TestNotificationCallback) {
   testTray.notification_cb = notification_callback;
 
   tray_update(&testTray);
-  tray_loop(1);
 
   WaitForTrayReady();
   EXPECT_TRUE(captureScreenshot("tray_notification_with_callback"));
@@ -433,7 +427,6 @@ TEST_F(TrayTest, TestMenuItemContext) {
   testTray.menu[0].cb(&testTray.menu[0]);
   EXPECT_TRUE(contextCallbackInvoked);
 
-  tray_loop(1);
   WaitForTrayReady();
   EXPECT_TRUE(captureScreenshot("tray_menu_with_context"));
 
@@ -501,7 +494,6 @@ TEST_F(TrayTest, TestCompleteMenuHierarchy) {
   ASSERT_NE(testTray.menu[4].submenu[0].submenu, nullptr);
   ASSERT_NE(testTray.menu[4].submenu[1].submenu, nullptr);
 
-  tray_loop(1);
   WaitForTrayReady();
   EXPECT_TRUE(captureScreenshot("tray_complete_menu_hierarchy"));
 }
@@ -569,7 +561,6 @@ TEST_F(TrayTest, TestQuitCallback) {
   ASSERT_NE(testTray.menu[6].cb, nullptr);
   EXPECT_STREQ(testTray.menu[6].text, "Quit");
 
-  tray_loop(1);
   WaitForTrayReady();
   EXPECT_TRUE(captureScreenshot("tray_before_quit"));
 
