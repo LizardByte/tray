@@ -119,6 +119,11 @@ void tray_update(struct tray *tray) {
   [image setSize:NSMakeSize(16, 16)];
   statusItem.button.image = image;
   [statusItem setMenu:_tray_menu(tray->menu)];
+
+  // Set tooltip if provided
+  if (tray->tooltip != NULL) {
+    statusItem.button.toolTip = [NSString stringWithUTF8String:tray->tooltip];
+  }
 }
 
 void tray_show_menu(void) {
