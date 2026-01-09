@@ -130,16 +130,28 @@ protected:
     trayRunning = false;
   }
 
-  // Process pending GTK events to allow AppIndicator to register
+  // Process pending events to allow tray icon to appear
   // Call this ONLY before screenshots to ensure the icon is visible
   void WaitForTrayReady() {
 #if defined(TRAY_APPINDICATOR)
-    // On Linux with AppIndicator, process GTK events to allow D-Bus registration
-    // This ensures the icon actually appears in the system tray before screenshots
-    // Use shorter iterations to avoid interfering with event loop state
+    // On Linux: process GTK events to allow AppIndicator D-Bus registration
     for (int i = 0; i < 100; i++) {
       tray_loop(0);  // Non-blocking - process pending events
       std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+#elif defined(TRAY_APPKIT)
+    // On macOS: process events if on main thread, otherwise just sleep
+    // NSApp event loop must only be called from main thread
+    static std::thread::id main_thread_id = std::this_thread::get_id();
+    if (std::this_thread::get_id() == main_thread_id) {
+      // Main thread - safe to call tray_loop
+      for (int i = 0; i < 100; i++) {
+        tray_loop(0);  // Non-blocking - process pending events
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+      }
+    } else {
+      // Background thread - just wait longer
+      std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
 #endif
   }
