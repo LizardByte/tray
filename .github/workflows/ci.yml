@@ -29,9 +29,11 @@ jobs:
             shell: "bash"
           - os: ubuntu-latest
             appindicator: "libayatana-appindicator3-dev"
+            appindicator_type: "ayatana"
             shell: "bash"
           - os: ubuntu-latest
             appindicator: "libappindicator3-dev"
+            appindicator_type: "legacy"
             shell: "bash"
           - os: windows-latest
             shell: "msys2 {0}"
@@ -59,6 +61,7 @@ jobs:
         if: runner.os == 'Linux'
         uses: LizardByte/actions/actions/setup_virtual_desktop@feat/actions/linux-display  # todo: pin version
         with:
+          appindicator-version: ${{ matrix.appindicator_type }}
           environment: mate
 
       - name: Setup Dependencies macOS
