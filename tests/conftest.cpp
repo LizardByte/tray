@@ -1,11 +1,13 @@
 // standard includes
 #include <array>
 #include <filesystem>
+#include <mutex>
 
 // lib includes
 #include <gtest/gtest.h>
 
 // test includes
+#include "tests/screenshot_utils.h"
 #include "tests/utils.h"
 
 // Undefine the original TEST macro
@@ -34,7 +36,8 @@ protected:
   BaseTest():
       sbuf {nullptr},
       pipe_stdout {nullptr},
-      pipe_stderr {nullptr} {
+      pipe_stderr {nullptr},
+      screenshotsReady {false} {
     // intentionally empty
   }
 
@@ -58,6 +61,8 @@ protected:
     if (testBinaryDir.empty() || testBinaryDir.string() == ".") {
       testBinaryDir = std::filesystem::current_path();
     }
+
+    initializeScreenshotsOnce();
 
     sbuf = std::cout.rdbuf();  // save cout buffer (std::cout)
     std::cout.rdbuf(cout_buffer.rdbuf());  // redirect cout to buffer (std::cout)
@@ -102,6 +107,19 @@ protected:
   std::streambuf *sbuf;
   FILE *pipe_stdout;
   FILE *pipe_stderr;
+  bool screenshotsReady;
+
+  void initializeScreenshotsOnce() {
+    static std::once_flag screenshotInitFlag;
+    std::call_once(screenshotInitFlag, [this]() {
+      auto root = testBinaryDir;
+      if (!root.empty()) {
+        std::error_code ec;
+        std::filesystem::remove_all(root / "screenshots", ec);
+      }
+      screenshot::initialize(root);
+    });
+  }
 
   int exec(const char *cmd) {
     std::array<char, 128> buffer {};
@@ -124,6 +142,41 @@ protected:
     }
     return returnCode;
   }
+
+  bool ensureScreenshotReady() {
+    if (screenshotsReady) {
+      return true;
+    }
+    std::string reason;
+    if (!screenshot::is_available(&reason)) {
+      screenshotUnavailableReason = reason;
+      return false;
+    }
+    auto root = screenshot::output_root();
+    if (root.empty()) {
+      screenshotUnavailableReason = "Screenshot output directory not initialized";
+      return false;
+    }
+    screenshotsReady = true;
+    return true;
+  }
+
+  bool captureScreenshot(const std::string &name) {
+    if (!screenshotsReady) {
+      return false;
+    }
+    bool ok = screenshot::capture(name);
+    if (!ok) {
+      std::cout << "Failed to capture screenshot: " << name << std::endl;
+    }
+    return ok;
+  }
+
+  std::filesystem::path screenshotsRoot() const {
+    return screenshot::output_root();
+  }
+
+  std::string screenshotUnavailableReason;
 };
 
 class LinuxTest: public BaseTest {

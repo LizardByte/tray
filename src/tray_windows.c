@@ -3,9 +3,9 @@
  * @brief System tray implementation for Windows.
  */
 // standard includes
-#include <windows.h>
+#include <Windows.h>
 // clang-format off
-// build fails if shellapi.h is included before windows.h
+// build fails if shellapi.h is included before Windows.h
 #include <shellapi.h>
 // clang-format on
 
@@ -315,6 +315,11 @@ void tray_update(struct tray *tray) {
   }
 }
 
+void tray_show_menu(void) {
+  // Simulate a right-click on the tray icon to show the menu
+  SendMessage(hwnd, WM_TRAY_CALLBACK_MESSAGE, 0, WM_RBUTTONUP);
+}
+
 void tray_exit(void) {
   Shell_NotifyIconW(NIM_DELETE, &nid);
   SendMessage(hwnd, WM_CLOSE, 0, 0);
@@ -323,4 +328,8 @@ void tray_exit(void) {
     DestroyMenu(hmenu);
   }
   UnregisterClass(WC_TRAY_CLASS_NAME, GetModuleHandle(NULL));
+}
+
+HWND tray_get_hwnd(void) {
+  return hwnd;
 }
