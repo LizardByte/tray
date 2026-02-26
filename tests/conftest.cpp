@@ -185,6 +185,7 @@ protected:
 #ifndef __linux__
     GTEST_SKIP_("Skipping, this test is for Linux only.");
 #endif
+    BaseTest::SetUp();
   }
 
   void TearDown() override {
@@ -198,6 +199,7 @@ protected:
 #if !defined(__APPLE__) || !defined(__MACH__)
     GTEST_SKIP_("Skipping, this test is for macOS only.");
 #endif
+    BaseTest::SetUp();
   }
 
   void TearDown() override {

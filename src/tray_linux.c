@@ -198,8 +198,7 @@ void tray_show_menu(void) {
         GdkWindow *gdk_window = gtk_widget_get_window(anchor_window);
         if (gdk_window != NULL) {
           GdkRectangle rect = {0, 0, 1, 1};
-          gtk_menu_popup_at_rect(current_menu, gdk_window, &rect,
-                                 GDK_GRAVITY_NORTH_WEST, GDK_GRAVITY_NORTH_WEST, NULL);
+          gtk_menu_popup_at_rect(current_menu, gdk_window, &rect, GDK_GRAVITY_NORTH_WEST, GDK_GRAVITY_NORTH_WEST, NULL);
         } else {
           // Fallback
           gtk_menu_popup(current_menu, NULL, NULL, NULL, NULL, 0, gtk_get_current_event_time());
