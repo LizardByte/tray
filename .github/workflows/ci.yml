@@ -243,53 +243,7 @@ jobs:
         # TODO: tests randomly hang on Linux, https://github.com/LizardByte/tray/issues/45
         timeout-minutes: 3
         working-directory: build/tests
-        run: |
-          echo "::group::D-Bus Environment Check"
-          echo "DBUS_SESSION_BUS_ADDRESS: ${DBUS_SESSION_BUS_ADDRESS:-NOT SET}"
-
-          # Ensure D-Bus session address is set for AppIndicator tests on Linux
-          if [ "${{ runner.os }}" = "Linux" ] && [ -z "$DBUS_SESSION_BUS_ADDRESS" ]; then
-            echo "::error::DBUS_SESSION_BUS_ADDRESS is not set! This should have been set by setup_virtual_desktop."
-            echo "Attempting to detect as fallback..."
-            DBUS_PID=$(pgrep -u $(id -u) dbus-daemon | head -n 1)
-            if [ -n "$DBUS_PID" ]; then
-              DBUS_ADDR=$(grep -z DBUS_SESSION_BUS_ADDRESS /proc/$DBUS_PID/environ | tr '\0' '\n' | cut -d= -f2-)
-              if [ -n "$DBUS_ADDR" ]; then
-                echo "Setting DBUS_SESSION_BUS_ADDRESS=$DBUS_ADDR"
-                export DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDR"
-              else
-                echo "::error::Could not detect D-Bus session address"
-                exit 1
-              fi
-            else
-              echo "::error::No dbus-daemon process found"
-              exit 1
-            fi
-          else
-            echo "✓ DBUS_SESSION_BUS_ADDRESS is set"
-          fi
-
-          # Verify D-Bus is responding
-          if [ "${{ runner.os }}" = "Linux" ]; then
-            if dbus-send --session --dest=org.freedesktop.DBus --print-reply /org/freedesktop/DBus \
-               org.freedesktop.DBus.ListNames >/dev/null 2>&1; then
-              echo "✓ D-Bus session is responding"
-            else
-              echo "::error::D-Bus session is not responding"
-              exit 1
-            fi
-
-            # Check if indicator service is registered
-            if dbus-send --session --dest=org.freedesktop.DBus --print-reply /org/freedesktop/DBus \
-               org.freedesktop.DBus.ListNames 2>/dev/null | grep -q "com.canonical.indicator.application"; then
-              echo "✓ AppIndicator service is registered on D-Bus"
-            else
-              echo "::warning::AppIndicator service is NOT registered on D-Bus"
-            fi
-          fi
-          echo "::endgroup::"
-
-          ./test_tray --gtest_color=yes --gtest_output=xml:test_results.xml
+        run: ./test_tray --gtest_color=yes --gtest_output=xml:test_results.xml
 
       - name: Upload screenshots
         if: >-
