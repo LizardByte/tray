@@ -4,9 +4,7 @@
 // standard includes
 #include <algorithm>
 #include <chrono>
-#include <cstdlib>
 #include <iostream>
-#include <limits>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -27,11 +25,11 @@ namespace {
   std::filesystem::path g_outputRoot;
 
   std::string quote_shell_path(const std::filesystem::path &path) {
-    std::string input = path.string();
+    const std::string input = path.string();
     std::string output;
     output.reserve(input.size() + 2);
     output.push_back('"');
-    for (char ch : input) {
+    for (const char ch : input) {
       if (ch == '"') {
         output.append("\\\"");
       } else {
@@ -189,7 +187,7 @@ namespace screenshot {
       std::cerr << "PNG encoder CLSID not found" << std::endl;
       return false;
     }
-    std::wstring widePath = file.wstring();
+    const std::wstring widePath = file.wstring();
     if (bitmap.Save(widePath.c_str(), &pngClsid, nullptr) != Gdiplus::Ok) {
       std::cerr << "GDI+ failed to write " << file << std::endl;
       return false;
