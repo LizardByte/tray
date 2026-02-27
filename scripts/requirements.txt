@@ -1,1 +1,1 @@
-clang-format==21.*
+clang-format==22.*
