@@ -39,8 +39,25 @@
 static NSApplication *app;
 static NSStatusBar *statusBar;
 static NSStatusItem *statusItem;
+static int loopResult = 0;
 
 #define QUIT_EVENT_SUBTYPE 0x0DED  ///< NSEvent subtype used to signal exit.
+
+static void drain_quit_events(void) {
+  while (YES) {
+    NSEvent *event = [app nextEventMatchingMask:ULONG_MAX
+                                      untilDate:[NSDate distantPast]
+                                         inMode:[NSString stringWithUTF8String:"kCFRunLoopDefaultMode"]
+                                        dequeue:TRUE];
+    if (event == nil) {
+      break;
+    }
+    if (event.type == NSEventTypeApplicationDefined && event.subtype == QUIT_EVENT_SUBTYPE) {
+      continue;
+    }
+    [app sendEvent:event];
+  }
+}
 
 static NSMenu *_tray_menu(struct tray_menu *m) {
   NSMenu *menu = [[NSMenu alloc] init];
@@ -67,6 +84,7 @@ static NSMenu *_tray_menu(struct tray_menu *m) {
 }
 
 int tray_init(struct tray *tray) {
+  loopResult = 0;
   AppDelegate *delegate = [[AppDelegate alloc] init];
   app = [NSApplication sharedApplication];
   [app setDelegate:delegate];
@@ -74,6 +92,7 @@ int tray_init(struct tray *tray) {
   statusItem = [statusBar statusItemWithLength:NSVariableStatusItemLength];
   tray_update(tray);
   [app activateIgnoringOtherApps:TRUE];
+  drain_quit_events();
   return 0;
 }
 
@@ -85,12 +104,13 @@ int tray_loop(int blocking) {
                                       dequeue:TRUE];
   if (event) {
     if (event.type == NSEventTypeApplicationDefined && event.subtype == QUIT_EVENT_SUBTYPE) {
-      return -1;
+      loopResult = -1;
+      return loopResult;
     }
 
     [app sendEvent:event];
   }
-  return 0;
+  return loopResult;
 }
 
 void tray_update(struct tray *tray) {
@@ -99,9 +119,37 @@ void tray_update(struct tray *tray) {
   [image setSize:NSMakeSize(16, 16)];
   statusItem.button.image = image;
   [statusItem setMenu:_tray_menu(tray->menu)];
+
+  // Set tooltip if provided
+  if (tray->tooltip != NULL) {
+    statusItem.button.toolTip = [NSString stringWithUTF8String:tray->tooltip];
+  }
+}
+
+void tray_show_menu(void) {
+  [statusItem popUpStatusItemMenu:statusItem.menu];
 }
 
 void tray_exit(void) {
+  // Remove the status item from the status bar on the main thread
+  // NSStatusBar operations must be performed on the main thread
+  if (statusItem != nil) {
+    if ([NSThread isMainThread]) {
+      // Already on main thread, remove directly
+      [statusBar removeStatusItem:statusItem];
+      statusItem = nil;
+    } else {
+      // On background thread, dispatch synchronously to main thread
+      dispatch_sync(dispatch_get_main_queue(), ^{
+        if (statusItem != nil) {
+          [statusBar removeStatusItem:statusItem];
+          statusItem = nil;
+        }
+      });
+    }
+  }
+
+  // Post exit event
   NSEvent *event = [NSEvent otherEventWithType:NSEventTypeApplicationDefined
                                       location:NSMakePoint(0, 0)
                                  modifierFlags:0

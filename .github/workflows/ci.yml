@@ -29,9 +29,11 @@ jobs:
             shell: "bash"
           - os: ubuntu-latest
             appindicator: "libayatana-appindicator3-dev"
+            appindicator_type: "ayatana"
             shell: "bash"
           - os: ubuntu-latest
             appindicator: "libappindicator3-dev"
+            appindicator_type: "legacy"
             shell: "bash"
           - os: windows-latest
             shell: "msys2 {0}"
@@ -49,10 +51,18 @@ jobs:
             build-essential \
             cmake \
             ${{ matrix.appindicator }} \
+            imagemagick \
             libglib2.0-dev \
             libnotify-dev \
             ninja-build \
             xvfb
+
+      - name: Setup virtual desktop
+        if: runner.os == 'Linux'
+        uses: LizardByte/actions/actions/virtual_desktop@70bb8d394d1c92f6113aeec6ae9cc959a5763d15  # v2026.227.200013
+        with:
+          appindicator-version: ${{ matrix.appindicator_type }}
+          environment: mate
 
       - name: Setup Dependencies macOS
         if: runner.os == 'macOS'
@@ -62,8 +72,80 @@ jobs:
             cmake \
             doxygen \
             graphviz \
+            imagemagick \
             ninja \
             node
+
+      - name: Fix macOS screen recording permissions
+        if: runner.os == 'macOS'
+        run: |
+          # Grant screen recording permissions to prevent popup dialogs in CI
+          # This modifies the TCC (Transparency, Consent, and Control) database
+
+          # https://apple.stackexchange.com/questions/362865/macos-list-apps-authorized-for-full-disk-access
+          # https://github.com/actions/runner-images/issues/9529
+          # https://github.com/actions/runner-images/pull/9530
+
+          # Get macOS version
+          os_version=$(sw_vers -productVersion | cut -d '.' -f 1)
+          echo "macOS version: $os_version"
+
+          # function to execute sql query for each value
+          function execute_sql_query {
+            local value=$1
+            local dbPath=$2
+            echo "Executing SQL query for value: $value"
+            sudo sqlite3 "$dbPath" "INSERT OR IGNORE INTO access VALUES($value);"
+          }
+
+          # Find all provisioner paths and store them in an array
+          declare -a app_paths=()
+          while IFS= read -r line; do
+            app_paths+=("$line")
+          done < <(sudo find /opt /usr -name bash 2>/dev/null)
+          echo "Provisioner paths: ${app_paths[@]}"
+
+          # Create an empty array
+          declare -a values=()
+
+          # Loop through the provisioner paths and add them to the values array
+          for p_path in "${app_paths[@]}"; do
+            # Adjust the service name and other parameters as needed
+            values+=("'kTCCServiceAccessibility','${p_path}',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,NULL,1592919552")
+            values+=("'kTCCServiceScreenCapture','${p_path}',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,1687786159")
+          done
+          echo "Values: ${values[@]}"
+
+          # Adjust for Sonoma (macOS 14+) which has extra columns
+          if [[ "$os_version" -ge 14 ]]; then
+            echo "Adjusting for macOS Sonoma or later (extra TCC columns)"
+            # TCC access table in Sonoma has extra 4 columns: pid, pid_version, boot_uuid, last_reminded
+            for i in "${!values[@]}"; do
+              values[$i]="${values[$i]},NULL,NULL,'UNUSED',${values[$i]##*,}"
+            done
+          fi
+
+          # System and user TCC databases
+          dbPaths=(
+            "/Library/Application Support/com.apple.TCC/TCC.db"
+            "$HOME/Library/Application Support/com.apple.TCC/TCC.db"
+          )
+
+          # Execute SQL queries
+          for value in "${values[@]}"; do
+            for dbPath in "${dbPaths[@]}"; do
+              echo "Column names for $dbPath"
+              echo "-------------------"
+              sudo sqlite3 "$dbPath" "PRAGMA table_info(access);"
+              echo "Current permissions for $dbPath"
+              echo "-------------------"
+              sudo sqlite3 "$dbPath" "SELECT * FROM access WHERE service='kTCCServiceScreenCapture';"
+              execute_sql_query "$value" "$dbPath"
+              echo "Updated permissions for $dbPath"
+              echo "-------------------"
+              sudo sqlite3 "$dbPath" "SELECT * FROM access WHERE service='kTCCServiceScreenCapture';"
+            done
+          done
 
       - name: Setup Dependencies Windows
         if: runner.os == 'Windows'
@@ -76,6 +158,7 @@ jobs:
             mingw-w64-ucrt-x86_64-binutils
             mingw-w64-ucrt-x86_64-cmake
             mingw-w64-ucrt-x86_64-graphviz
+            mingw-w64-ucrt-x86_64-imagemagick
             mingw-w64-ucrt-x86_64-ninja
             mingw-w64-ucrt-x86_64-nodejs
             mingw-w64-ucrt-x86_64-toolchain
@@ -98,7 +181,7 @@ jobs:
 
           # step output
           echo "python-path=${python_path}"
-          echo "python-path=${python_path}" >> $GITHUB_OUTPUT
+          echo "python-path=${python_path}" >> "${GITHUB_OUTPUT}"
 
       - name: Build
         run: |
@@ -119,18 +202,57 @@ jobs:
             -S .
           ninja -C build
 
+      - name: Init tray icon (Windows)
+        if: runner.os == 'Windows'
+        working-directory: build/tests
+        run: ./test_tray --gtest_color=yes --gtest_filter=TrayTest.TestTrayInit
+
+      - name: Configure Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          echo "::group::Enable all tray icons"
+          Invoke-WebRequest `
+            -Uri "https://raw.githubusercontent.com/paulmann/windows-show-all-tray-icons/main/Enable-AllTrayIcons.ps1" `
+            -OutFile "Enable-AllTrayIcons.ps1"
+          .\Enable-AllTrayIcons.ps1 -Action Enable -Force  # Enable with comprehensive method (resets ALL icon settings)
+          echo "::endgroup::"
+
+          echo "::group::Disable Do Not Disturb"
+          Add-Type -AssemblyName System.Windows.Forms
+          Start-Process "ms-settings:notifications"
+          Start-Sleep -Seconds 2
+          [System.Windows.Forms.SendKeys]::SendWait("{TAB}")
+          [System.Windows.Forms.SendKeys]::SendWait("{TAB}")
+          [System.Windows.Forms.SendKeys]::SendWait(" ")
+          echo "::endgroup::"
+
+          echo "::group::Minimize all windows"
+          $shell = New-Object -ComObject Shell.Application
+          $shell.MinimizeAll()
+          echo "::endgroup::"
+
+          echo "::group::Set Date - Hack for Quiet Time"
+          $newDate = (Get-Date).AddHours(2)
+          Set-Date -Date $newDate
+          echo "::endgroup::"
+
       - name: Run tests
         id: test
         # TODO: tests randomly hang on Linux, https://github.com/LizardByte/tray/issues/45
-        timeout-minutes: 1
+        timeout-minutes: 3
         working-directory: build/tests
-        run: |
-          if [ "${{ runner.os }}" = "Linux" ]; then
-            export DISPLAY=:1
-            Xvfb ${DISPLAY} -screen 0 1024x768x24 &
-          fi
+        run: ./test_tray --gtest_color=yes --gtest_output=xml:test_results.xml
 
-          ./test_tray --gtest_color=yes --gtest_output=xml:test_results.xml
+      - name: Upload screenshots
+        if: >-
+          always() &&
+          (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
+        uses: actions/upload-artifact@v6
+        with:
+          name: tray-screenshots-${{ runner.os }}${{ matrix.appindicator && format('-{0}', matrix.appindicator) || '' }}
+          path: build/tests/screenshots
+          if-no-files-found: error
 
       - name: Generate gcov report
         id: test_report
@@ -159,7 +281,7 @@ jobs:
           if [ -n "${{ matrix.appindicator }}" ]; then
               flags="${flags},${{ matrix.appindicator }}"
           fi
-          echo "flags=${flags}" >> $GITHUB_OUTPUT
+          echo "flags=${flags}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload coverage
         # any except canceled or skipped

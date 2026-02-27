@@ -18,9 +18,17 @@ if (WIN32)
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)  # cmake-lint: disable=C0103
 endif ()
 
+# extra libraries for tests
+if (APPLE)
+    set(TEST_LIBS "-framework Cocoa")
+elseif (WIN32)
+    set(TEST_LIBS gdi32 gdiplus)
+endif()
+
 file(GLOB_RECURSE TEST_SOURCES
         ${CMAKE_SOURCE_DIR}/tests/conftest.cpp
         ${CMAKE_SOURCE_DIR}/tests/utils.cpp
+        ${CMAKE_SOURCE_DIR}/tests/screenshot_utils.cpp
         ${CMAKE_SOURCE_DIR}/tests/test_*.cpp)
 
 add_executable(${PROJECT_NAME}
@@ -29,6 +37,7 @@ add_executable(${PROJECT_NAME}
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 17)
 target_link_directories(${PROJECT_NAME} PRIVATE ${TRAY_EXTERNAL_DIRECTORIES})
 target_link_libraries(${PROJECT_NAME}
+        ${TEST_LIBS}
         ${TRAY_EXTERNAL_LIBRARIES}
         gtest
         gtest_main)  # if we use this we don't need our own main function
