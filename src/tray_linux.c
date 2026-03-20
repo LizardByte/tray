@@ -5,7 +5,9 @@
 // standard includes
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 // lib includes
 #ifdef TRAY_AYATANA_APPINDICATOR
@@ -17,7 +19,10 @@
   #define IS_APP_INDICATOR APP_IS_INDICATOR  ///< Define IS_APP_INDICATOR for app-indicator compatibility.
 #endif
 #include <libnotify/notify.h>
-#define TRAY_APPINDICATOR_ID "tray-id"  ///< Tray appindicator ID.
+
+// Use a per-process AppIndicator id to avoid DBus collisions when tests create multiple
+// tray instances in the same desktop/session.
+static unsigned long tray_appindicator_seq = 0;
 
 // local includes
 #include "tray.h"
@@ -29,6 +34,7 @@ static pthread_mutex_t async_update_mutex = PTHREAD_MUTEX_INITIALIZER;
 static AppIndicator *indicator = NULL;
 static int loop_result = 0;
 static NotifyNotification *currentNotification = NULL;
+static GtkMenu *current_menu = NULL;
 
 static void _tray_menu_cb(GtkMenuItem *item, gpointer data) {
   (void) item;
@@ -67,8 +73,23 @@ int tray_init(struct tray *tray) {
   if (gtk_init_check(0, NULL) == FALSE) {
     return -1;
   }
+
+  // If a previous tray instance wasn't fully torn down (common in unit tests),
+  // drop our references before creating a new indicator.
+  if (indicator != NULL) {
+    g_object_unref(G_OBJECT(indicator));
+    indicator = NULL;
+  }
+  loop_result = 0;
   notify_init("tray-icon");
-  indicator = app_indicator_new(TRAY_APPINDICATOR_ID, tray->icon, APP_INDICATOR_CATEGORY_APPLICATION_STATUS);
+  // The id is used as part of the exported DBus object path.
+  // Make it unique per *tray instance* to prevent collisions inside a single test process.
+  // Avoid underscores and other characters that may be normalized/stripped.
+  char appindicator_id[64];
+  tray_appindicator_seq++;
+  snprintf(appindicator_id, sizeof(appindicator_id), "trayid%ld%lu", (long) getpid(), tray_appindicator_seq);
+
+  indicator = app_indicator_new(appindicator_id, tray->icon, APP_INDICATOR_CATEGORY_APPLICATION_STATUS);
   if (indicator == NULL || !IS_APP_INDICATOR(indicator)) {
     return -1;
   }
@@ -89,7 +110,13 @@ static gboolean tray_update_internal(gpointer user_data) {
     app_indicator_set_icon_full(indicator, tray->icon, tray->icon);
     // GTK is all about reference counting, so previous menu should be destroyed
     // here
-    app_indicator_set_menu(indicator, GTK_MENU(_tray_menu(tray->menu)));
+    GtkMenu *menu = GTK_MENU(_tray_menu(tray->menu));
+    app_indicator_set_menu(indicator, menu);
+    if (current_menu != NULL) {
+      g_object_unref(current_menu);
+    }
+    current_menu = menu;
+    g_object_ref(current_menu);  // Keep a reference for showing
   }
   if (tray->notification_text != 0 && strlen(tray->notification_text) > 0 && notify_is_initted()) {
     if (currentNotification != NULL && NOTIFY_IS_NOTIFICATION(currentNotification)) {
@@ -144,12 +171,73 @@ void tray_update(struct tray *tray) {
   }
 }
 
+void tray_show_menu(void) {
+  if (current_menu != NULL) {
+    // For AppIndicator, we need to show the menu manually since the indicator
+    // is managed by the system. In headless environments, we need to create
+    // a proper toplevel window for the menu to attach to.
+
+    // Create an invisible toplevel window as an anchor
+    GtkWidget *anchor_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    if (anchor_window != NULL) {
+      gtk_window_set_type_hint(GTK_WINDOW(anchor_window), GDK_WINDOW_TYPE_HINT_POPUP_MENU);
+      gtk_window_set_decorated(GTK_WINDOW(anchor_window), FALSE);
+      gtk_window_set_skip_taskbar_hint(GTK_WINDOW(anchor_window), TRUE);
+      gtk_window_set_skip_pager_hint(GTK_WINDOW(anchor_window), TRUE);
+      gtk_window_move(GTK_WINDOW(anchor_window), 100, 100);
+      gtk_window_resize(GTK_WINDOW(anchor_window), 1, 1);
+      gtk_widget_show(anchor_window);
+
+      // Give the window time to appear
+      while (gtk_events_pending()) {
+        gtk_main_iteration();
+      }
+
+      if (gtk_check_version(3, 22, 0) == NULL) {
+        // GTK 3.22+ - use modern API with the anchor window
+        GdkWindow *gdk_window = gtk_widget_get_window(anchor_window);
+        if (gdk_window != NULL) {
+          GdkRectangle rect = {0, 0, 1, 1};
+          gtk_menu_popup_at_rect(current_menu, gdk_window, &rect, GDK_GRAVITY_NORTH_WEST, GDK_GRAVITY_NORTH_WEST, NULL);
+        } else {
+          // Fallback
+          gtk_menu_popup(current_menu, NULL, NULL, NULL, NULL, 0, gtk_get_current_event_time());
+        }
+      } else {
+        // Older GTK - use deprecated API
+        gtk_menu_popup(current_menu, NULL, NULL, NULL, NULL, 0, gtk_get_current_event_time());
+      }
+
+      // Note: We don't destroy anchor_window here as the menu needs it to stay visible
+      // It will be cleaned up when the application exits
+    } else {
+      // Fallback if window creation fails
+      gtk_menu_popup(current_menu, NULL, NULL, NULL, NULL, 0, gtk_get_current_event_time());
+    }
+  }
+}
+
 static gboolean tray_exit_internal(gpointer user_data) {
+  (void) user_data;
+
   if (currentNotification != NULL && NOTIFY_IS_NOTIFICATION(currentNotification)) {
     int v = notify_notification_close(currentNotification, NULL);
     if (v == TRUE) {
       g_object_unref(G_OBJECT(currentNotification));
     }
+    currentNotification = NULL;
+  }
+
+  if (current_menu != NULL) {
+    g_object_unref(current_menu);
+    current_menu = NULL;
+  }
+
+  if (indicator != NULL) {
+    // Make the indicator passive before unref to encourage a clean DBus unexport.
+    app_indicator_set_status(indicator, APP_INDICATOR_STATUS_PASSIVE);
+    g_object_unref(G_OBJECT(indicator));
+    indicator = NULL;
   }
   notify_uninit();
   return G_SOURCE_REMOVE;
