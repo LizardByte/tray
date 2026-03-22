@@ -279,29 +279,6 @@ TEST_F(TrayTest, TestSubmenuStructure) {
   EXPECT_STREQ(testTray.menu[4].submenu[0].text, "THIRD");
   ASSERT_NE(testTray.menu[4].submenu[0].submenu, nullptr);
   EXPECT_STREQ(testTray.menu[4].submenu[0].submenu[0].text, "7");
-
-  // Show the menu open to capture nested menus visually
-  std::thread capture_thread([this]() {
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    EXPECT_TRUE(captureScreenshot("tray_menu_with_submenu"));
-#if defined(TRAY_WINAPI)
-    PostMessage(tray_get_hwnd(), WM_CANCELMODE, 0, 0);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-#elif defined(TRAY_APPKIT)
-    CGEventRef event = CGEventCreateKeyboardEvent(NULL, kVK_Escape, true);
-    CGEventPost(kCGHIDEventTap, event);
-    CFRelease(event);
-    CGEventRef event2 = CGEventCreateKeyboardEvent(NULL, kVK_Escape, false);
-    CGEventPost(kCGHIDEventTap, event2);
-    CFRelease(event2);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-#endif
-    tray_exit();
-  });
-
-  tray_show_menu();
-  tray_loop(1);
-  capture_thread.join();
 }
 
 TEST_F(TrayTest, TestSubmenuCallback) {
@@ -452,7 +429,6 @@ TEST_F(TrayTest, TestCheckboxStates) {
 
   // Show menu open with checkbox in checked state
   std::thread capture_checked([this]() {
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     EXPECT_TRUE(captureScreenshot("tray_menu_checkbox_checked"));
 #if defined(TRAY_WINAPI)
     PostMessage(tray_get_hwnd(), WM_CANCELMODE, 0, 0);
@@ -470,7 +446,9 @@ TEST_F(TrayTest, TestCheckboxStates) {
   });
 
   tray_show_menu();
-  tray_loop(1);
+  while (tray_loop(0) == 0) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
   capture_checked.join();
 
   // Re-initialize tray with checkbox unchecked
@@ -482,7 +460,6 @@ TEST_F(TrayTest, TestCheckboxStates) {
 
   // Show menu open with checkbox in unchecked state
   std::thread capture_unchecked([this]() {
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     EXPECT_TRUE(captureScreenshot("tray_menu_checkbox_unchecked"));
 #if defined(TRAY_WINAPI)
     PostMessage(tray_get_hwnd(), WM_CANCELMODE, 0, 0);
@@ -500,7 +477,9 @@ TEST_F(TrayTest, TestCheckboxStates) {
   });
 
   tray_show_menu();
-  tray_loop(1);
+  while (tray_loop(0) == 0) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
   capture_unchecked.join();
 
   // Restore initial checked state
@@ -593,7 +572,6 @@ TEST_F(TrayTest, TestQuitCallback) {
   ASSERT_NE(testTray.menu[6].cb, nullptr);
   EXPECT_STREQ(testTray.menu[6].text, "Quit");
 
-
   // Note: Actually calling quit_cb would terminate the tray,
   // which is tested separately in TestTrayExit
 }
@@ -603,35 +581,28 @@ TEST_F(TrayTest, TestTrayShowMenu) {
   trayRunning = (initResult == 0);
   ASSERT_EQ(initResult, 0);
 
-  // Start a thread to capture screenshot and exit
+  // Screenshot shows the full menu open, including the SubMenu entry that leads to nested items
   std::thread capture_thread([this]() {
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    WaitForTrayReady();
     EXPECT_TRUE(captureScreenshot("tray_menu_shown"));
 #if defined(TRAY_WINAPI)
-    // Cancel the menu
     PostMessage(tray_get_hwnd(), WM_CANCELMODE, 0, 0);
-    // Wait for menu to close
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 #elif defined(TRAY_APPKIT)
-    // Simulate ESC key to dismiss menu
     CGEventRef event = CGEventCreateKeyboardEvent(NULL, kVK_Escape, true);
     CGEventPost(kCGHIDEventTap, event);
     CFRelease(event);
     CGEventRef event2 = CGEventCreateKeyboardEvent(NULL, kVK_Escape, false);
     CGEventPost(kCGHIDEventTap, event2);
     CFRelease(event2);
-    // Wait for menu to close
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 #endif
-    // Exit the tray
     tray_exit();
   });
 
-  // Show the menu programmatically
   tray_show_menu();
-
-  tray_loop(1);
+  while (tray_loop(0) == 0) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
 
   capture_thread.join();
 }

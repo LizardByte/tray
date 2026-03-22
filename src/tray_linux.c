@@ -35,6 +35,8 @@ static AppIndicator *indicator = NULL;
 static int loop_result = 0;
 static NotifyNotification *currentNotification = NULL;
 static GtkMenu *current_menu = NULL;
+static GtkMenu *current_popup = NULL;
+static GtkWidget *menu_anchor_window = NULL;
 
 static void _tray_menu_cb(GtkMenuItem *item, gpointer data) {
   (void) item;
@@ -171,50 +173,56 @@ void tray_update(struct tray *tray) {
   }
 }
 
-void tray_show_menu(void) {
-  if (current_menu != NULL) {
-    // For AppIndicator, we need to show the menu manually since the indicator
-    // is managed by the system. In headless environments, we need to create
-    // a proper toplevel window for the menu to attach to.
-
-    // Create an invisible toplevel window as an anchor
-    GtkWidget *anchor_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    if (anchor_window != NULL) {
-      gtk_window_set_type_hint(GTK_WINDOW(anchor_window), GDK_WINDOW_TYPE_HINT_POPUP_MENU);
-      gtk_window_set_decorated(GTK_WINDOW(anchor_window), FALSE);
-      gtk_window_set_skip_taskbar_hint(GTK_WINDOW(anchor_window), TRUE);
-      gtk_window_set_skip_pager_hint(GTK_WINDOW(anchor_window), TRUE);
-      gtk_window_move(GTK_WINDOW(anchor_window), 100, 100);
-      gtk_window_resize(GTK_WINDOW(anchor_window), 1, 1);
-      gtk_widget_show(anchor_window);
-
-      // Give the window time to appear
-      while (gtk_events_pending()) {
-        gtk_main_iteration();
-      }
-
-      if (gtk_check_version(3, 22, 0) == NULL) {
-        // GTK 3.22+ - use modern API with the anchor window
-        GdkWindow *gdk_window = gtk_widget_get_window(anchor_window);
-        if (gdk_window != NULL) {
-          GdkRectangle rect = {0, 0, 1, 1};
-          gtk_menu_popup_at_rect(current_menu, gdk_window, &rect, GDK_GRAVITY_NORTH_WEST, GDK_GRAVITY_NORTH_WEST, NULL);
-        } else {
-          // Fallback
-          gtk_menu_popup(current_menu, NULL, NULL, NULL, NULL, 0, gtk_get_current_event_time());
-        }
-      } else {
-        // Older GTK - use deprecated API
-        gtk_menu_popup(current_menu, NULL, NULL, NULL, NULL, 0, gtk_get_current_event_time());
-      }
-
-      // Note: We don't destroy anchor_window here as the menu needs it to stay visible
-      // It will be cleaned up when the application exits
-    } else {
-      // Fallback if window creation fails
-      gtk_menu_popup(current_menu, NULL, NULL, NULL, NULL, 0, gtk_get_current_event_time());
-    }
+static void _tray_popup(GtkMenu *menu) {
+  if (menu == NULL) {
+    return;
   }
+
+  // Dismiss any previously shown popup
+  if (current_popup != NULL) {
+    gtk_menu_popdown(current_popup);
+    current_popup = NULL;
+  }
+  if (menu_anchor_window != NULL) {
+    gtk_widget_destroy(menu_anchor_window);
+    menu_anchor_window = NULL;
+  }
+
+  GtkWidget *anchor_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+  if (anchor_window != NULL) {
+    gtk_window_set_type_hint(GTK_WINDOW(anchor_window), GDK_WINDOW_TYPE_HINT_POPUP_MENU);
+    gtk_window_set_decorated(GTK_WINDOW(anchor_window), FALSE);
+    gtk_window_set_skip_taskbar_hint(GTK_WINDOW(anchor_window), TRUE);
+    gtk_window_set_skip_pager_hint(GTK_WINDOW(anchor_window), TRUE);
+    gtk_window_move(GTK_WINDOW(anchor_window), 100, 100);
+    gtk_window_resize(GTK_WINDOW(anchor_window), 1, 1);
+    gtk_widget_show(anchor_window);
+    menu_anchor_window = anchor_window;
+
+    while (gtk_events_pending()) {
+      gtk_main_iteration();
+    }
+
+    if (gtk_check_version(3, 22, 0) == NULL) {
+      GdkWindow *gdk_window = gtk_widget_get_window(anchor_window);
+      if (gdk_window != NULL) {
+        GdkRectangle rect = {0, 0, 1, 1};
+        gtk_menu_popup_at_rect(menu, gdk_window, &rect, GDK_GRAVITY_NORTH_WEST, GDK_GRAVITY_NORTH_WEST, NULL);
+      } else {
+        gtk_menu_popup(menu, NULL, NULL, NULL, NULL, 0, gtk_get_current_event_time());
+      }
+    } else {
+      gtk_menu_popup(menu, NULL, NULL, NULL, NULL, 0, gtk_get_current_event_time());
+    }
+    current_popup = menu;
+  } else {
+    gtk_menu_popup(menu, NULL, NULL, NULL, NULL, 0, gtk_get_current_event_time());
+    current_popup = menu;
+  }
+}
+
+void tray_show_menu(void) {
+  _tray_popup(current_menu);
 }
 
 static gboolean tray_exit_internal(gpointer user_data) {
@@ -228,9 +236,19 @@ static gboolean tray_exit_internal(gpointer user_data) {
     currentNotification = NULL;
   }
 
+  if (current_popup != NULL) {
+    gtk_menu_popdown(current_popup);
+    current_popup = NULL;
+  }
+
   if (current_menu != NULL) {
     g_object_unref(current_menu);
     current_menu = NULL;
+  }
+
+  if (menu_anchor_window != NULL) {
+    gtk_widget_destroy(menu_anchor_window);
+    menu_anchor_window = NULL;
   }
 
   if (indicator != NULL) {

@@ -316,8 +316,7 @@ void tray_update(struct tray *tray) {
 }
 
 void tray_show_menu(void) {
-  // Simulate a right-click on the tray icon to show the menu
-  SendMessage(hwnd, WM_TRAY_CALLBACK_MESSAGE, 0, WM_RBUTTONUP);
+  PostMessage(hwnd, WM_TRAY_CALLBACK_MESSAGE, 0, WM_RBUTTONUP);
 }
 
 void tray_exit(void) {
