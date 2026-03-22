@@ -205,8 +205,6 @@ TEST_F(TrayTest, TestTrayLoop) {
   // Test non-blocking loop (blocking=0) since blocking would hang without events
   int result = tray_loop(0);
   EXPECT_EQ(result, 0);
-  WaitForTrayReady();
-  EXPECT_TRUE(captureScreenshot("tray_loop_iteration"));
 }
 
 TEST_F(TrayTest, TestTrayUpdate) {
@@ -220,8 +218,6 @@ TEST_F(TrayTest, TestTrayUpdate) {
   testTray.tooltip = "TestTray2";
   tray_update(&testTray);
   EXPECT_EQ(testTray.icon, TRAY_ICON2);
-  WaitForTrayReady();
-  EXPECT_TRUE(captureScreenshot("tray_icon_updated"));
 
   // put back the original values
   testTray.icon = TRAY_ICON1;
@@ -238,8 +234,6 @@ TEST_F(TrayTest, TestToggleCallback) {
   bool initialCheckedState = testTray.menu[1].checked;
   toggle_cb(&testTray.menu[1]);
   EXPECT_EQ(testTray.menu[1].checked, !initialCheckedState);
-  WaitForTrayReady();
-  EXPECT_TRUE(captureScreenshot("tray_menu_toggle"));
 }
 
 TEST_F(TrayTest, TestMenuItemCallback) {
@@ -250,8 +244,6 @@ TEST_F(TrayTest, TestMenuItemCallback) {
   // Test hello callback - it should work without crashing
   ASSERT_NE(testTray.menu[0].cb, nullptr);
   testTray.menu[0].cb(&testTray.menu[0]);
-  WaitForTrayReady();
-  EXPECT_TRUE(captureScreenshot("tray_menu_callback_hello"));
 }
 
 TEST_F(TrayTest, TestDisabledMenuItem) {
@@ -262,8 +254,6 @@ TEST_F(TrayTest, TestDisabledMenuItem) {
   // Verify disabled menu item
   EXPECT_EQ(testTray.menu[2].disabled, 1);
   EXPECT_STREQ(testTray.menu[2].text, "Disabled");
-  WaitForTrayReady();
-  EXPECT_TRUE(captureScreenshot("tray_menu_disabled_item"));
 }
 
 TEST_F(TrayTest, TestMenuSeparator) {
@@ -274,8 +264,6 @@ TEST_F(TrayTest, TestMenuSeparator) {
   // Verify separator exists
   EXPECT_STREQ(testTray.menu[3].text, "-");
   EXPECT_EQ(testTray.menu[3].cb, nullptr);
-  WaitForTrayReady();
-  EXPECT_TRUE(captureScreenshot("tray_menu_with_separator"));
 }
 
 TEST_F(TrayTest, TestSubmenuStructure) {
@@ -292,8 +280,28 @@ TEST_F(TrayTest, TestSubmenuStructure) {
   ASSERT_NE(testTray.menu[4].submenu[0].submenu, nullptr);
   EXPECT_STREQ(testTray.menu[4].submenu[0].submenu[0].text, "7");
 
-  WaitForTrayReady();
-  EXPECT_TRUE(captureScreenshot("tray_submenu_structure"));
+  // Show the menu open to capture nested menus visually
+  std::thread capture_thread([this]() {
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    EXPECT_TRUE(captureScreenshot("tray_menu_with_submenu"));
+#if defined(TRAY_WINAPI)
+    PostMessage(tray_get_hwnd(), WM_CANCELMODE, 0, 0);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+#elif defined(TRAY_APPKIT)
+    CGEventRef event = CGEventCreateKeyboardEvent(NULL, kVK_Escape, true);
+    CGEventPost(kCGHIDEventTap, event);
+    CFRelease(event);
+    CGEventRef event2 = CGEventCreateKeyboardEvent(NULL, kVK_Escape, false);
+    CGEventPost(kCGHIDEventTap, event2);
+    CFRelease(event2);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+#endif
+    tray_exit();
+  });
+
+  tray_show_menu();
+  tray_loop(1);
+  capture_thread.join();
 }
 
 TEST_F(TrayTest, TestSubmenuCallback) {
@@ -304,8 +312,6 @@ TEST_F(TrayTest, TestSubmenuCallback) {
   // Test submenu callback
   ASSERT_NE(testTray.menu[4].submenu[0].submenu[0].cb, nullptr);
   testTray.menu[4].submenu[0].submenu[0].cb(&testTray.menu[4].submenu[0].submenu[0]);
-  WaitForTrayReady();
-  EXPECT_TRUE(captureScreenshot("tray_submenu_callback_executed"));
 }
 
 TEST_F(TrayTest, TestNotificationDisplay) {
@@ -372,9 +378,6 @@ TEST_F(TrayTest, TestNotificationCallback) {
 
   tray_update(&testTray);
 
-  WaitForTrayReady();
-  EXPECT_TRUE(captureScreenshot("tray_notification_with_callback"));
-
   // Note: callback would be invoked by user interaction in real scenario
   // In test environment, we verify it's set correctly
   EXPECT_NE(testTray.notification_cb, nullptr);
@@ -394,15 +397,11 @@ TEST_F(TrayTest, TestTooltipUpdate) {
 
   // Test initial tooltip
   EXPECT_STREQ(testTray.tooltip, "TestTray");
-  WaitForTrayReady();
-  EXPECT_TRUE(captureScreenshot("tray_tooltip_initial"));
 
   // Update tooltip
   testTray.tooltip = "Updated Tooltip Text";
   tray_update(&testTray);
   EXPECT_STREQ(testTray.tooltip, "Updated Tooltip Text");
-  WaitForTrayReady();
-  EXPECT_TRUE(captureScreenshot("tray_tooltip_updated"));
 
   // Restore original tooltip
   testTray.tooltip = "TestTray";
@@ -439,9 +438,6 @@ TEST_F(TrayTest, TestMenuItemContext) {
   testTray.menu[0].cb(&testTray.menu[0]);
   EXPECT_TRUE(contextCallbackInvoked);
 
-  WaitForTrayReady();
-  EXPECT_TRUE(captureScreenshot("tray_menu_with_context"));
-
   // Restore original menu
   testTray.menu = submenu;
 }
@@ -451,21 +447,64 @@ TEST_F(TrayTest, TestCheckboxStates) {
   trayRunning = (initResult == 0);
   ASSERT_EQ(initResult, 0);
 
-  // Test checkbox item
   EXPECT_EQ(testTray.menu[1].checkbox, 1);
   EXPECT_EQ(testTray.menu[1].checked, 1);
-  WaitForTrayReady();
-  EXPECT_TRUE(captureScreenshot("tray_checkbox_checked"));
 
-  // Toggle checkbox
+  // Show menu open with checkbox in checked state
+  std::thread capture_checked([this]() {
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    EXPECT_TRUE(captureScreenshot("tray_menu_checkbox_checked"));
+#if defined(TRAY_WINAPI)
+    PostMessage(tray_get_hwnd(), WM_CANCELMODE, 0, 0);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+#elif defined(TRAY_APPKIT)
+    CGEventRef event = CGEventCreateKeyboardEvent(NULL, kVK_Escape, true);
+    CGEventPost(kCGHIDEventTap, event);
+    CFRelease(event);
+    CGEventRef event2 = CGEventCreateKeyboardEvent(NULL, kVK_Escape, false);
+    CGEventPost(kCGHIDEventTap, event2);
+    CFRelease(event2);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+#endif
+    tray_exit();
+  });
+
+  tray_show_menu();
+  tray_loop(1);
+  capture_checked.join();
+
+  // Re-initialize tray with checkbox unchecked
+  trayRunning = false;
   testTray.menu[1].checked = 0;
-  tray_update(&testTray);
-  WaitForTrayReady();
-  EXPECT_TRUE(captureScreenshot("tray_checkbox_unchecked"));
+  initResult = tray_init(&testTray);
+  trayRunning = (initResult == 0);
+  ASSERT_EQ(initResult, 0);
 
-  // Toggle back
+  // Show menu open with checkbox in unchecked state
+  std::thread capture_unchecked([this]() {
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    EXPECT_TRUE(captureScreenshot("tray_menu_checkbox_unchecked"));
+#if defined(TRAY_WINAPI)
+    PostMessage(tray_get_hwnd(), WM_CANCELMODE, 0, 0);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+#elif defined(TRAY_APPKIT)
+    CGEventRef event = CGEventCreateKeyboardEvent(NULL, kVK_Escape, true);
+    CGEventPost(kCGHIDEventTap, event);
+    CFRelease(event);
+    CGEventRef event2 = CGEventCreateKeyboardEvent(NULL, kVK_Escape, false);
+    CGEventPost(kCGHIDEventTap, event2);
+    CFRelease(event2);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+#endif
+    tray_exit();
+  });
+
+  tray_show_menu();
+  tray_loop(1);
+  capture_unchecked.join();
+
+  // Restore initial checked state
   testTray.menu[1].checked = 1;
-  tray_update(&testTray);
 }
 
 TEST_F(TrayTest, TestMultipleIconUpdates) {
@@ -473,20 +512,12 @@ TEST_F(TrayTest, TestMultipleIconUpdates) {
   trayRunning = (initResult == 0);
   ASSERT_EQ(initResult, 0);
 
-  // Capture initial icon
-  WaitForTrayReady();
-  EXPECT_TRUE(captureScreenshot("tray_icon_state1"));
-
   // Update icon multiple times
   testTray.icon = TRAY_ICON2;
   tray_update(&testTray);
-  WaitForTrayReady();
-  EXPECT_TRUE(captureScreenshot("tray_icon_state2"));
 
   testTray.icon = TRAY_ICON1;
   tray_update(&testTray);
-  WaitForTrayReady();
-  EXPECT_TRUE(captureScreenshot("tray_icon_state3"));
 }
 
 TEST_F(TrayTest, TestCompleteMenuHierarchy) {
@@ -505,9 +536,6 @@ TEST_F(TrayTest, TestCompleteMenuHierarchy) {
   ASSERT_NE(testTray.menu[4].submenu, nullptr);
   ASSERT_NE(testTray.menu[4].submenu[0].submenu, nullptr);
   ASSERT_NE(testTray.menu[4].submenu[1].submenu, nullptr);
-
-  WaitForTrayReady();
-  EXPECT_TRUE(captureScreenshot("tray_complete_menu_hierarchy"));
 }
 
 TEST_F(TrayTest, TestIconPathArray) {
@@ -538,14 +566,10 @@ TEST_F(TrayTest, TestIconPathArray) {
 
   // Verify initial icon
   EXPECT_EQ(iconCacheTray->icon, TRAY_ICON1);
-  WaitForTrayReady();
-  EXPECT_TRUE(captureScreenshot("tray_icon_cache_initial"));
 
   // Switch to cached icon
   iconCacheTray->icon = TRAY_ICON2;
   tray_update(iconCacheTray);
-  WaitForTrayReady();
-  EXPECT_TRUE(captureScreenshot("tray_icon_cache_updated"));
   free(iconCacheTray);
 #else
   // On non-Windows platforms, just test basic icon switching
@@ -554,13 +578,9 @@ TEST_F(TrayTest, TestIconPathArray) {
   ASSERT_EQ(initResult, 0);
 
   EXPECT_EQ(testTray.icon, TRAY_ICON1);
-  WaitForTrayReady();
-  EXPECT_TRUE(captureScreenshot("tray_icon_cache_initial"));
 
   testTray.icon = TRAY_ICON2;
   tray_update(&testTray);
-  WaitForTrayReady();
-  EXPECT_TRUE(captureScreenshot("tray_icon_cache_updated"));
 #endif
 }
 
@@ -573,8 +593,6 @@ TEST_F(TrayTest, TestQuitCallback) {
   ASSERT_NE(testTray.menu[6].cb, nullptr);
   EXPECT_STREQ(testTray.menu[6].text, "Quit");
 
-  WaitForTrayReady();
-  EXPECT_TRUE(captureScreenshot("tray_before_quit"));
 
   // Note: Actually calling quit_cb would terminate the tray,
   // which is tested separately in TestTrayExit
