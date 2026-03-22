@@ -9,6 +9,9 @@
 #include <string.h>
 #include <unistd.h>
 
+// local includes
+#include "tray.h"
+
 // lib includes
 #ifdef TRAY_AYATANA_APPINDICATOR
   #include <libayatana-appindicator/app-indicator.h>
@@ -23,9 +26,6 @@
 // Use a per-process AppIndicator id to avoid DBus collisions when tests create multiple
 // tray instances in the same desktop/session.
 static unsigned long tray_appindicator_seq = 0;
-
-// local includes
-#include "tray.h"
 
 static bool async_update_pending = false;
 static pthread_cond_t async_update_cv = PTHREAD_COND_INITIALIZER;

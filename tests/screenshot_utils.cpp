@@ -22,8 +22,7 @@
 #endif
 
 namespace {
-  std::filesystem::path g_outputRoot;
-
+#if defined(__linux__) || defined(__APPLE__)
   std::string quote_shell_path(const std::filesystem::path &path) {
     const std::string input = path.string();
     std::string output;
@@ -31,7 +30,7 @@ namespace {
     output.push_back('"');
     for (const char ch : input) {
       if (ch == '"') {
-        output.append("\\\"");
+        output.append(R"(\")");
       } else {
         output.push_back(ch);
       }
@@ -39,15 +38,13 @@ namespace {
     output.push_back('"');
     return output;
   }
+#endif
 
 #ifdef _WIN32
-  std::once_flag gdiplusInitFlag;
-  bool gdiplusReady = false;
-  ULONG_PTR gdiplusToken = 0;
-  std::once_flag dpiFlag;
-  bool dpiAware = false;
-
   bool ensure_gdiplus() {
+    static std::once_flag gdiplusInitFlag;
+    static bool gdiplusReady = false;
+    static ULONG_PTR gdiplusToken = 0;
     std::call_once(gdiplusInitFlag, []() {
       Gdiplus::GdiplusStartupInput input;
       gdiplusReady = Gdiplus::GdiplusStartup(&gdiplusToken, &input, nullptr) == Gdiplus::Ok;
@@ -56,9 +53,14 @@ namespace {
   }
 
   bool ensure_dpi_awareness() {
+    static std::once_flag dpiFlag;
+    static bool dpiAware = false;
     std::call_once(dpiFlag, []() {
-      auto setDPIAware = reinterpret_cast<BOOL(WINAPI *)()>(GetProcAddress(GetModuleHandleA("user32.dll"), "SetProcessDPIAware"));
-      dpiAware = setDPIAware == nullptr || setDPIAware() == TRUE;
+      using SetProcessDPIAwareFn = BOOL(WINAPI *)();
+      auto *fn = reinterpret_cast<SetProcessDPIAwareFn>(  // NOSONAR(cpp:S3630) - required for GetProcAddress function pointer cast
+        GetProcAddress(GetModuleHandleA("user32.dll"), "SetProcessDPIAware")
+      );
+      dpiAware = fn == nullptr || fn() == TRUE;
     });
     return dpiAware;
   }
@@ -70,7 +72,7 @@ namespace {
       return false;
     }
     std::vector<BYTE> buffer(size);
-    auto info = reinterpret_cast<Gdiplus::ImageCodecInfo *>(buffer.data());
+    auto *info = static_cast<Gdiplus::ImageCodecInfo *>(static_cast<void *>(buffer.data()));
     if (Gdiplus::GetImageEncoders(num, size, info) != Gdiplus::Ok) {
       return false;
     }
@@ -82,20 +84,24 @@ namespace {
     }
     return false;
   }
-
 #endif
 }  // namespace
 
 namespace screenshot {
 
+  inline std::filesystem::path &output_root_ref() {
+    static std::filesystem::path g_outputRoot;
+    return g_outputRoot;
+  }
+
   void initialize(const std::filesystem::path &rootDir) {
-    g_outputRoot = rootDir / "screenshots";
+    output_root_ref() = rootDir / "screenshots";
     std::error_code ec;
-    std::filesystem::create_directories(g_outputRoot, ec);
+    std::filesystem::create_directories(output_root_ref(), ec);
   }
 
   std::filesystem::path output_root() {
-    return g_outputRoot;
+    return output_root_ref();
   }
 
 #ifdef __APPLE__
@@ -135,8 +141,7 @@ namespace screenshot {
     int width = GetSystemMetrics(SM_CXVIRTUALSCREEN);
     int height = GetSystemMetrics(SM_CYVIRTUALSCREEN);
 
-    HWND desktop = GetDesktopWindow();
-    if ((width <= 0 || height <= 0) && desktop != nullptr) {
+    if (HWND desktop = GetDesktopWindow(); (width <= 0 || height <= 0) && desktop != nullptr) {
       RECT rect {};
       if (GetWindowRect(desktop, &rect)) {
         left = rect.left;
@@ -187,8 +192,7 @@ namespace screenshot {
       std::cerr << "PNG encoder CLSID not found" << std::endl;
       return false;
     }
-    const std::wstring widePath = file.wstring();
-    if (bitmap.Save(widePath.c_str(), &pngClsid, nullptr) != Gdiplus::Ok) {
+    if (bitmap.Save(file.wstring().c_str(), &pngClsid, nullptr) != Gdiplus::Ok) {
       std::cerr << "GDI+ failed to write " << file << std::endl;
       return false;
     }
@@ -227,10 +231,10 @@ namespace screenshot {
     // Add a delay to allow UI elements to render before capturing
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-    if (g_outputRoot.empty()) {
+    if (output_root_ref().empty()) {
       return false;
     }
-    auto file = g_outputRoot / (name + ".png");
+    auto file = output_root_ref() / (name + ".png");
 
 #ifdef __APPLE__
     return capture_macos(file, options);

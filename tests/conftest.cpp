@@ -33,13 +33,7 @@ protected:
   // we can possibly use some internal googletest functions to capture stdout and stderr, but I have not tested this
   // https://stackoverflow.com/a/33186201/11214013
 
-  BaseTest():
-      sbuf {nullptr},
-      pipe_stdout {nullptr},
-      pipe_stderr {nullptr},
-      screenshotsReady {false} {
-    // intentionally empty
-  }
+  BaseTest() = default;
 
   ~BaseTest() override = default;
 
@@ -104,10 +98,10 @@ protected:
   std::stringstream cout_buffer;  // declare cout_buffer
   std::stringstream stdout_buffer;  // declare stdout_buffer
   std::stringstream stderr_buffer;  // declare stderr_buffer
-  std::streambuf *sbuf;
-  FILE *pipe_stdout;
-  FILE *pipe_stderr;
-  bool screenshotsReady;
+  std::streambuf *sbuf {nullptr};
+  FILE *pipe_stdout {nullptr};
+  FILE *pipe_stderr {nullptr};
+  bool screenshotsReady {false};
 
   void initializeScreenshotsOnce() {
     static std::once_flag screenshotInitFlag;
@@ -147,13 +141,11 @@ protected:
     if (screenshotsReady) {
       return true;
     }
-    std::string reason;
-    if (!screenshot::is_available(&reason)) {
+    if (std::string reason; !screenshot::is_available(&reason)) {
       screenshotUnavailableReason = reason;
       return false;
     }
-    auto root = screenshot::output_root();
-    if (root.empty()) {
+    if (const auto root = screenshot::output_root(); root.empty()) {
       screenshotUnavailableReason = "Screenshot output directory not initialized";
       return false;
     }
@@ -187,10 +179,6 @@ protected:
 #endif
     BaseTest::SetUp();
   }
-
-  void TearDown() override {
-    BaseTest::TearDown();
-  }
 };
 
 class MacOSTest: public BaseTest {
@@ -201,22 +189,14 @@ protected:
 #endif
     BaseTest::SetUp();
   }
-
-  void TearDown() override {
-    BaseTest::TearDown();
-  }
 };
 
 class WindowsTest: public BaseTest {
 protected:
-  void SetUp() override {
+  void SetUp() override {  // NOSONAR(cpp:S1185) - contains platform skip logic, not a trivial override
 #ifndef _WIN32
     GTEST_SKIP_("Skipping, this test is for Windows only.");
 #endif
     BaseTest::SetUp();
-  }
-
-  void TearDown() override {
-    BaseTest::TearDown();
   }
 };

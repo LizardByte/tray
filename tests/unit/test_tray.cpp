@@ -2,8 +2,11 @@
 #include "tests/conftest.cpp"
 
 // standard includes
+#include <array>
 #include <chrono>
+#include <cstring>
 #include <thread>
+#include <vector>
 
 #if defined(_WIN32) || defined(_WIN64)
   #include <Windows.h>
@@ -24,37 +27,78 @@
 #include "tests/screenshot_utils.h"
 
 #if TRAY_APPINDICATOR
-  #define TRAY_ICON1 "mail-message-new"
-  #define TRAY_ICON2 "mail-message-new"
+constexpr const char *TRAY_ICON1 = "mail-message-new";
+constexpr const char *TRAY_ICON2 = "mail-message-new";
 #elif TRAY_APPKIT
-  #define TRAY_ICON1 "icon.png"
-  #define TRAY_ICON2 "icon.png"
+constexpr const char *TRAY_ICON1 = "icon.png";
+constexpr const char *TRAY_ICON2 = "icon.png";
 #elif TRAY_WINAPI
-  #define TRAY_ICON1 "icon.ico"
-  #define TRAY_ICON2 "icon.ico"
+constexpr const char *TRAY_ICON1 = "icon.ico";
+constexpr const char *TRAY_ICON2 = "icon.ico";
 #endif
 
+// File-scope tray data shared across all TrayTest instances
+namespace {
+  // NOSONAR(cpp:S5945, cpp:S5421) - C-style arrays with null sentinel are required by the tray C API;
+  // mutable (non-const) because callbacks are assigned at runtime in SetUp()
+  struct tray_menu g_submenu7_8[] = {
+    {.text = "7", .cb = nullptr},
+    {.text = "-"},
+    {.text = "8", .cb = nullptr},
+    {.text = nullptr}
+  };
+  struct tray_menu g_submenu5_6[] = {
+    {.text = "5", .cb = nullptr},
+    {.text = "6", .cb = nullptr},
+    {.text = nullptr}
+  };
+  struct tray_menu g_submenu_second[] = {
+    {.text = "THIRD", .submenu = g_submenu7_8},
+    {.text = "FOUR", .submenu = g_submenu5_6},
+    {.text = nullptr}
+  };
+  struct tray_menu g_submenu[] = {
+    {.text = "Hello", .cb = nullptr},
+    {.text = "Checked", .checked = 1, .checkbox = 1, .cb = nullptr},
+    {.text = "Disabled", .disabled = 1},
+    {.text = "-"},
+    {.text = "SubMenu", .submenu = g_submenu_second},
+    {.text = "-"},
+    {.text = "Quit", .cb = nullptr},
+    {.text = nullptr}
+  };
+  struct tray g_testTray = {
+    .icon = TRAY_ICON1,
+    .tooltip = "TestTray",
+    .menu = g_submenu
+  };
+}  // namespace
+
 class TrayTest: public BaseTest {
+  void ShutdownTray() {
+    if (!trayRunning) {
+      return;
+    }
+    tray_exit();
+    tray_loop(0);
+    trayRunning = false;
+  }
+
 protected:
-  static struct tray testTray;
-  bool trayRunning;
-  std::string iconPath1;
-  std::string iconPath2;
+  bool trayRunning {false};  // NOSONAR(cpp:S3656) - protected access required by gtest TEST_F subclass pattern
+  struct tray &testTray = g_testTray;
+  struct tray_menu *submenu = g_submenu;
+  struct tray_menu *submenu7_8 = g_submenu7_8;
+  struct tray_menu *submenu5_6 = g_submenu5_6;
+  struct tray_menu *submenu_second = g_submenu_second;
 
-  // Static arrays for submenus
-  static struct tray_menu submenu7_8[];
-  static struct tray_menu submenu5_6[];
-  static struct tray_menu submenu_second[];
-  static struct tray_menu submenu[];
-
-  // Non-static member functions
-  static void hello_cb(struct tray_menu *item) {
+  static void hello_cb([[maybe_unused]] struct tray_menu *item) {
     // Mock implementation
   }
 
   static void toggle_cb(struct tray_menu *item) {
-    item->checked = !item->checked;
-    tray_update(&testTray);
+    g_testTray.menu[1].checked = !g_testTray.menu[1].checked;
+    tray_update(&g_testTray);
   }
 
   static void quit_cb(struct tray_menu *item) {
@@ -63,11 +107,20 @@ protected:
 
   static void submenu_cb(struct tray_menu *item) {
     // Mock implementation
-    tray_update(&testTray);
+    tray_update(&g_testTray);
   }
 
   void SetUp() override {
     BaseTest::SetUp();
+
+    // Wire up callbacks (file-scope arrays can't use addresses of class statics at init time)
+    g_submenu[0].cb = hello_cb;
+    g_submenu[1].cb = toggle_cb;
+    g_submenu[6].cb = quit_cb;
+    g_submenu7_8[0].cb = submenu_cb;
+    g_submenu7_8[2].cb = submenu_cb;
+    g_submenu5_6[0].cb = submenu_cb;
+    g_submenu5_6[1].cb = submenu_cb;
 
     // Skip tests if screenshot tooling is not available
     if (!ensureScreenshotReady()) {
@@ -79,24 +132,17 @@ protected:
 
 #if defined(TRAY_WINAPI) || defined(TRAY_APPKIT)
     // Ensure icon files exist in test binary directory
-    // Look for icons in project root or cmake build directory
     std::filesystem::path projectRoot = testBinaryDir.parent_path();
     std::filesystem::path iconSource;
 
-    // Try icons directory first
     if (std::filesystem::exists(projectRoot / "icons" / TRAY_ICON1)) {
       iconSource = projectRoot / "icons" / TRAY_ICON1;
-    }
-    // Try project root
-    else if (std::filesystem::exists(projectRoot / TRAY_ICON1)) {
+    } else if (std::filesystem::exists(projectRoot / TRAY_ICON1)) {
       iconSource = projectRoot / TRAY_ICON1;
-    }
-    // Try current directory
-    else if (std::filesystem::exists(std::filesystem::path(TRAY_ICON1))) {
+    } else if (std::filesystem::exists(std::filesystem::path(TRAY_ICON1))) {
       iconSource = std::filesystem::path(TRAY_ICON1);
     }
 
-    // Copy icon to test binary directory if not already there
     if (!iconSource.empty()) {
       std::filesystem::path iconDest = testBinaryDir / TRAY_ICON1;
       if (!std::filesystem::exists(iconDest)) {
@@ -112,8 +158,8 @@ protected:
     trayRunning = false;
     testTray.icon = TRAY_ICON1;
     testTray.tooltip = "TestTray";
-    testTray.menu = submenu;
-    submenu[1].checked = 1;  // Reset checkbox state to initial value
+    testTray.menu = g_submenu;
+    g_submenu[1].checked = 1;
   }
 
   void TearDown() override {
@@ -121,73 +167,26 @@ protected:
     BaseTest::TearDown();
   }
 
-  void ShutdownTray() {
-    if (!trayRunning) {
-      return;
-    }
-    tray_exit();
-    tray_loop(0);
-    trayRunning = false;
-  }
-
-  // Process pending events to allow tray icon to appear
-  // Call this ONLY before screenshots to ensure the icon is visible
+  // Process pending events to allow tray icon to appear.
+  // Call this ONLY before screenshots to ensure the icon is visible.
   void WaitForTrayReady() {
 #if defined(TRAY_APPINDICATOR)
-    // On Linux: process GTK events to allow AppIndicator D-Bus registration
     for (int i = 0; i < 100; i++) {
-      tray_loop(0);  // Non-blocking - process pending events
+      tray_loop(0);
       std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 #elif defined(TRAY_APPKIT)
-    // On macOS: process events if on main thread, otherwise just sleep
-    // NSApp event loop must only be called from main thread
     static std::thread::id main_thread_id = std::this_thread::get_id();
     if (std::this_thread::get_id() == main_thread_id) {
-      // Main thread - safe to call tray_loop
       for (int i = 0; i < 100; i++) {
-        tray_loop(0);  // Non-blocking - process pending events
+        tray_loop(0);
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
       }
     } else {
-      // Background thread - just wait longer
       std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
 #endif
   }
-};
-
-// Define the static arrays
-struct tray_menu TrayTest::submenu7_8[] = {
-  {.text = "7", .cb = submenu_cb},
-  {.text = "-"},
-  {.text = "8", .cb = submenu_cb},
-  {.text = nullptr}
-};
-struct tray_menu TrayTest::submenu5_6[] = {
-  {.text = "5", .cb = submenu_cb},
-  {.text = "6", .cb = submenu_cb},
-  {.text = nullptr}
-};
-struct tray_menu TrayTest::submenu_second[] = {
-  {.text = "THIRD", .submenu = submenu7_8},
-  {.text = "FOUR", .submenu = submenu5_6},
-  {.text = nullptr}
-};
-struct tray_menu TrayTest::submenu[] = {
-  {.text = "Hello", .cb = hello_cb},
-  {.text = "Checked", .checked = 1, .checkbox = 1, .cb = toggle_cb},
-  {.text = "Disabled", .disabled = 1},
-  {.text = "-"},
-  {.text = "SubMenu", .submenu = submenu_second},
-  {.text = "-"},
-  {.text = "Quit", .cb = quit_cb},
-  {.text = nullptr}
-};
-struct tray TrayTest::testTray = {
-  .icon = TRAY_ICON1,
-  .tooltip = "TestTray",
-  .menu = submenu
 };
 
 TEST_F(TrayTest, TestTrayInit) {
@@ -298,8 +297,8 @@ TEST_F(TrayTest, TestNotificationDisplay) {
 
 #if defined(_WIN32)
   QUERY_USER_NOTIFICATION_STATE notification_state;
-  HRESULT ns = SHQueryUserNotificationState(&notification_state);
-  if (ns != S_OK || notification_state != QUNS_ACCEPTS_NOTIFICATIONS) {
+  if (HRESULT ns = SHQueryUserNotificationState(&notification_state);
+      ns != S_OK || notification_state != QUNS_ACCEPTS_NOTIFICATIONS) {
     GTEST_SKIP() << "Notifications not accepted in this environment. SHQueryUserNotificationState result: " << ns << ", state: " << notification_state;
   }
 #endif
@@ -332,8 +331,8 @@ TEST_F(TrayTest, TestNotificationCallback) {
 
 #if defined(_WIN32)
   QUERY_USER_NOTIFICATION_STATE notification_state;
-  HRESULT ns = SHQueryUserNotificationState(&notification_state);
-  if (ns != S_OK || notification_state != QUNS_ACCEPTS_NOTIFICATIONS) {
+  if (HRESULT ns = SHQueryUserNotificationState(&notification_state);
+      ns != S_OK || notification_state != QUNS_ACCEPTS_NOTIFICATIONS) {
     GTEST_SKIP() << "Notifications not accepted in this environment. SHQueryUserNotificationState result: " << ns << ", state: " << notification_state;
   }
 #endif
@@ -389,18 +388,16 @@ TEST_F(TrayTest, TestMenuItemContext) {
   static int contextValue = 42;
   static bool contextCallbackInvoked = false;
 
-  auto context_callback = [](struct tray_menu *item) {
+  auto context_callback = [](struct tray_menu *item) {  // NOSONAR(cpp:S995) - must match tray_menu.cb signature void(*)(struct tray_menu*)
     if (item->context != nullptr) {
-      int *value = static_cast<int *>(item->context);
+      const auto *value = static_cast<const int *>(item->context);
       contextCallbackInvoked = (*value == 42);
     }
   };
 
   // Create menu with context
-  struct tray_menu context_menu[] = {
-    {.text = "Context Item", .cb = context_callback, .context = &contextValue},
-    {.text = nullptr}
-  };
+  std::array<struct tray_menu, 2> context_menu_arr = {{{.text = "Context Item", .cb = context_callback, .context = &contextValue}, {.text = nullptr}}};
+  struct tray_menu *context_menu = context_menu_arr.data();
 
   testTray.menu = context_menu;
 
@@ -428,28 +425,30 @@ TEST_F(TrayTest, TestCheckboxStates) {
   EXPECT_EQ(testTray.menu[1].checked, 1);
 
   // Show menu open with checkbox in checked state
-  std::thread capture_checked([this]() {
-    EXPECT_TRUE(captureScreenshot("tray_menu_checkbox_checked"));
+  {
+    std::thread capture_checked([this]() {  // NOSONAR(cpp:S6168) - std::jthread unavailable on AppleClang 17 (libc++ < 18)
+      EXPECT_TRUE(captureScreenshot("tray_menu_checkbox_checked"));
 #if defined(TRAY_WINAPI)
-    PostMessage(tray_get_hwnd(), WM_CANCELMODE, 0, 0);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      PostMessage(tray_get_hwnd(), WM_CANCELMODE, 0, 0);
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
 #elif defined(TRAY_APPKIT)
-    CGEventRef event = CGEventCreateKeyboardEvent(NULL, kVK_Escape, true);
-    CGEventPost(kCGHIDEventTap, event);
-    CFRelease(event);
-    CGEventRef event2 = CGEventCreateKeyboardEvent(NULL, kVK_Escape, false);
-    CGEventPost(kCGHIDEventTap, event2);
-    CFRelease(event2);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      CGEventRef event = CGEventCreateKeyboardEvent(NULL, kVK_Escape, true);
+      CGEventPost(kCGHIDEventTap, event);
+      CFRelease(event);
+      CGEventRef event2 = CGEventCreateKeyboardEvent(NULL, kVK_Escape, false);
+      CGEventPost(kCGHIDEventTap, event2);
+      CFRelease(event2);
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
 #endif
-    tray_exit();
-  });
+      tray_exit();
+    });
 
-  tray_show_menu();
-  while (tray_loop(0) == 0) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    tray_show_menu();
+    while (tray_loop(0) == 0) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    capture_checked.join();
   }
-  capture_checked.join();
 
   // Re-initialize tray with checkbox unchecked
   trayRunning = false;
@@ -459,28 +458,30 @@ TEST_F(TrayTest, TestCheckboxStates) {
   ASSERT_EQ(initResult, 0);
 
   // Show menu open with checkbox in unchecked state
-  std::thread capture_unchecked([this]() {
-    EXPECT_TRUE(captureScreenshot("tray_menu_checkbox_unchecked"));
+  {
+    std::thread capture_unchecked([this]() {  // NOSONAR(cpp:S6168) - std::jthread unavailable on AppleClang 17 (libc++ < 18)
+      EXPECT_TRUE(captureScreenshot("tray_menu_checkbox_unchecked"));
 #if defined(TRAY_WINAPI)
-    PostMessage(tray_get_hwnd(), WM_CANCELMODE, 0, 0);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      PostMessage(tray_get_hwnd(), WM_CANCELMODE, 0, 0);
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
 #elif defined(TRAY_APPKIT)
-    CGEventRef event = CGEventCreateKeyboardEvent(NULL, kVK_Escape, true);
-    CGEventPost(kCGHIDEventTap, event);
-    CFRelease(event);
-    CGEventRef event2 = CGEventCreateKeyboardEvent(NULL, kVK_Escape, false);
-    CGEventPost(kCGHIDEventTap, event2);
-    CFRelease(event2);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      CGEventRef event = CGEventCreateKeyboardEvent(NULL, kVK_Escape, true);
+      CGEventPost(kCGHIDEventTap, event);
+      CFRelease(event);
+      CGEventRef event2 = CGEventCreateKeyboardEvent(NULL, kVK_Escape, false);
+      CGEventPost(kCGHIDEventTap, event2);
+      CFRelease(event2);
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
 #endif
-    tray_exit();
-  });
+      tray_exit();
+    });
 
-  tray_show_menu();
-  while (tray_loop(0) == 0) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    tray_show_menu();
+    while (tray_loop(0) == 0) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    capture_unchecked.join();
   }
-  capture_unchecked.join();
 
   // Restore initial checked state
   testTray.menu[1].checked = 1;
@@ -506,7 +507,7 @@ TEST_F(TrayTest, TestCompleteMenuHierarchy) {
 
   // Verify complete menu structure
   int menuCount = 0;
-  for (struct tray_menu *m = testTray.menu; m->text != nullptr; m++) {
+  for (const struct tray_menu *m = testTray.menu; m->text != nullptr; m++) {
     menuCount++;
   }
   EXPECT_EQ(menuCount, 7);  // Hello, Checked, Disabled, Sep, SubMenu, Sep, Quit
@@ -520,14 +521,13 @@ TEST_F(TrayTest, TestCompleteMenuHierarchy) {
 TEST_F(TrayTest, TestIconPathArray) {
 #if defined(TRAY_WINAPI)
   // Test icon path array caching (Windows-specific feature)
-  // Allocate memory for tray struct with flexible array member
+  // The tray struct has a flexible array member, so we allocate a raw buffer
+  // and use memcpy to initialize const fields before the object is used.
   const size_t icon_count = 2;
-  struct tray *iconCacheTray = (struct tray *) malloc(
-    sizeof(struct tray) + icon_count * sizeof(const char *)
-  );
-  ASSERT_NE(iconCacheTray, nullptr);
+  const size_t buf_size = sizeof(struct tray) + icon_count * sizeof(const char *);
+  std::vector<std::byte> buf(buf_size, std::byte {0});
+  auto *iconCacheTray = reinterpret_cast<struct tray *>(buf.data());  // NOSONAR(cpp:S3630) - reinterpret_cast required to overlay struct onto raw buffer for flexible array member
 
-  // Initialize the tray structure
   iconCacheTray->icon = TRAY_ICON1;
   iconCacheTray->tooltip = "Icon Cache Test";
   iconCacheTray->notification_icon = nullptr;
@@ -535,9 +535,14 @@ TEST_F(TrayTest, TestIconPathArray) {
   iconCacheTray->notification_title = nullptr;
   iconCacheTray->notification_cb = nullptr;
   iconCacheTray->menu = submenu;
-  *const_cast<int *>(&iconCacheTray->iconPathCount) = icon_count;
-  *const_cast<const char **>(&iconCacheTray->allIconPaths[0]) = TRAY_ICON1;
-  *const_cast<const char **>(&iconCacheTray->allIconPaths[1]) = TRAY_ICON2;
+
+  // Write const fields via memcpy — const_cast is required to initialize const members in a C struct flexible array allocation
+  auto count_val = static_cast<int>(icon_count);
+  std::memcpy(const_cast<int *>(&iconCacheTray->iconPathCount), &count_val, sizeof(count_val));  // NOSONAR(cpp:S859) - required to initialize const member in C struct allocated via raw buffer
+  const char *icon1 = TRAY_ICON1;
+  const char *icon2 = TRAY_ICON2;
+  std::memcpy(const_cast<char **>(&iconCacheTray->allIconPaths[0]), &icon1, sizeof(icon1));  // NOSONAR(cpp:S859) - required to initialize const member in C struct allocated via raw buffer
+  std::memcpy(const_cast<char **>(&iconCacheTray->allIconPaths[1]), &icon2, sizeof(icon2));  // NOSONAR(cpp:S859) - required to initialize const member in C struct allocated via raw buffer
 
   int initResult = tray_init(iconCacheTray);
   trayRunning = (initResult == 0);
@@ -549,7 +554,7 @@ TEST_F(TrayTest, TestIconPathArray) {
   // Switch to cached icon
   iconCacheTray->icon = TRAY_ICON2;
   tray_update(iconCacheTray);
-  free(iconCacheTray);
+  // buf goes out of scope, no manual free needed
 #else
   // On non-Windows platforms, just test basic icon switching
   int initResult = tray_init(&testTray);
@@ -582,7 +587,7 @@ TEST_F(TrayTest, TestTrayShowMenu) {
   ASSERT_EQ(initResult, 0);
 
   // Screenshot shows the full menu open, including the SubMenu entry that leads to nested items
-  std::thread capture_thread([this]() {
+  std::thread capture_thread([this]() {  // NOSONAR(cpp:S6168) - std::jthread unavailable on AppleClang 17 (libc++ < 18)
     EXPECT_TRUE(captureScreenshot("tray_menu_shown"));
 #if defined(TRAY_WINAPI)
     PostMessage(tray_get_hwnd(), WM_CANCELMODE, 0, 0);
@@ -603,7 +608,6 @@ TEST_F(TrayTest, TestTrayShowMenu) {
   while (tray_loop(0) == 0) {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
-
   capture_thread.join();
 }
 
