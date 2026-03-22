@@ -90,7 +90,7 @@ namespace {
 namespace screenshot {
 
   inline std::filesystem::path &output_root_ref() {
-    static std::filesystem::path g_outputRoot;
+    static std::filesystem::path g_outputRoot;  // NOSONAR(cpp:S6018) - function-local static is intentional for lazy, TU-local initialization
     return g_outputRoot;
   }
 
