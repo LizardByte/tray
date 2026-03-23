@@ -13,6 +13,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  setup_release:
+    name: Setup Release
+    outputs:
+      publish_release: ${{ steps.setup_release.outputs.publish_release }}
+      release_body: ${{ steps.setup_release.outputs.release_body }}
+      release_commit: ${{ steps.setup_release.outputs.release_commit }}
+      release_generate_release_notes: ${{ steps.setup_release.outputs.release_generate_release_notes }}
+      release_tag: ${{ steps.setup_release.outputs.release_tag }}
+      release_version: ${{ steps.setup_release.outputs.release_version }}
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Setup Release
+        id: setup_release
+        uses: LizardByte/actions/actions/release_setup@70bb8d394d1c92f6113aeec6ae9cc959a5763d15  # v2026.227.200013
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
   build:
     name: Build (${{ matrix.os }} - ${{ matrix.appindicator || 'default' }})
     defaults:
@@ -278,3 +300,31 @@ jobs:
           report_type: test_results
           token: ${{ secrets.CODECOV_TOKEN }}
           verbose: true
+
+  release:
+    name: Release
+    if:
+      always() &&
+      needs.setup_release.outputs.publish_release == 'true' &&
+      needs.build.result == 'success' &&
+      startsWith(github.repository, 'LizardByte/')
+    needs:
+      - build
+      - setup_release
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create/Update GitHub Release
+        if: needs.setup_release.outputs.publish_release == 'true'
+        uses: LizardByte/actions/actions/release_create@70bb8d394d1c92f6113aeec6ae9cc959a5763d15  # v2026.227.200013
+        with:
+          allowUpdates: false
+          artifacts: ''
+          body: ${{ needs.setup_release.outputs.release_body }}
+          draft: true
+          generateReleaseNotes: ${{ needs.setup_release.outputs.release_generate_release_notes }}
+          name: ${{ needs.setup_release.outputs.release_tag }}
+          prerelease: true
+          tag: ${{ needs.setup_release.outputs.release_tag }}
+          token: ${{ secrets.GH_BOT_TOKEN }}
