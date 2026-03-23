@@ -256,14 +256,26 @@ int tray_init(struct tray *tray) {
 
 int tray_loop(int blocking) {
   MSG msg;
+  int has_message = 0;
+
+  // Use the thread queue and only dispatch when a message was actually retrieved.
+  // This ensures WM_QUIT is observed and avoids dispatching an uninitialized MSG.
   if (blocking) {
-    GetMessage(&msg, hwnd, 0, 0);
+    has_message = GetMessage(&msg, NULL, 0, 0);
+    if (has_message <= 0) {
+      return -1;
+    }
   } else {
-    PeekMessage(&msg, hwnd, 0, 0, PM_REMOVE);
+    has_message = PeekMessage(&msg, NULL, 0, 0, PM_REMOVE);
+    if (has_message == 0) {
+      return 0;
+    }
   }
+
   if (msg.message == WM_QUIT) {
     return -1;
   }
+
   TranslateMessage(&msg);
   DispatchMessage(&msg);
   return 0;

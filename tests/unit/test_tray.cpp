@@ -235,6 +235,28 @@ TEST_F(TrayTest, TestTrayLoop) {
   EXPECT_EQ(result, 0);
 }
 
+#if defined(TRAY_WINAPI)
+TEST_F(TrayTest, TestTrayLoopHandlesThreadQuitMessage) {
+  int initResult = tray_init(&testTray);
+  trayRunning = (initResult == 0);
+  ASSERT_EQ(initResult, 0);
+
+  // WM_QUIT is posted to the thread queue, not to a specific window.
+  PostQuitMessage(0);
+
+  bool sawQuit = false;
+  for (int i = 0; i < 200; ++i) {
+    if (tray_loop(0) == -1) {
+      sawQuit = true;
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+
+  EXPECT_TRUE(sawQuit);
+}
+#endif
+
 TEST_F(TrayTest, TestTrayUpdate) {
   int initResult = tray_init(&testTray);
   trayRunning = (initResult == 0);
