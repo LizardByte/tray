@@ -1,11 +1,13 @@
 // standard includes
 #include <array>
 #include <filesystem>
+#include <mutex>
 
 // lib includes
 #include <gtest/gtest.h>
 
 // test includes
+#include "tests/screenshot_utils.h"
 #include "tests/utils.h"
 
 // Undefine the original TEST macro
@@ -31,12 +33,7 @@ protected:
   // we can possibly use some internal googletest functions to capture stdout and stderr, but I have not tested this
   // https://stackoverflow.com/a/33186201/11214013
 
-  BaseTest():
-      sbuf {nullptr},
-      pipe_stdout {nullptr},
-      pipe_stderr {nullptr} {
-    // intentionally empty
-  }
+  BaseTest() = default;
 
   ~BaseTest() override = default;
 
@@ -58,6 +55,8 @@ protected:
     if (testBinaryDir.empty() || testBinaryDir.string() == ".") {
       testBinaryDir = std::filesystem::current_path();
     }
+
+    initializeScreenshotsOnce();
 
     sbuf = std::cout.rdbuf();  // save cout buffer (std::cout)
     std::cout.rdbuf(cout_buffer.rdbuf());  // redirect cout to buffer (std::cout)
@@ -99,9 +98,22 @@ protected:
   std::stringstream cout_buffer;  // declare cout_buffer
   std::stringstream stdout_buffer;  // declare stdout_buffer
   std::stringstream stderr_buffer;  // declare stderr_buffer
-  std::streambuf *sbuf;
-  FILE *pipe_stdout;
-  FILE *pipe_stderr;
+  std::streambuf *sbuf {nullptr};
+  FILE *pipe_stdout {nullptr};
+  FILE *pipe_stderr {nullptr};
+  bool screenshotsReady {false};
+
+  void initializeScreenshotsOnce() {
+    static std::once_flag screenshotInitFlag;
+    std::call_once(screenshotInitFlag, [this]() {
+      auto root = testBinaryDir;
+      if (!root.empty()) {
+        std::error_code ec;
+        std::filesystem::remove_all(root / "screenshots", ec);
+      }
+      screenshot::initialize(root);
+    });
+  }
 
   int exec(const char *cmd) {
     std::array<char, 128> buffer {};
@@ -124,6 +136,39 @@ protected:
     }
     return returnCode;
   }
+
+  bool ensureScreenshotReady() {
+    if (screenshotsReady) {
+      return true;
+    }
+    if (std::string reason; !screenshot::is_available(&reason)) {
+      screenshotUnavailableReason = reason;
+      return false;
+    }
+    if (const auto root = screenshot::output_root(); root.empty()) {
+      screenshotUnavailableReason = "Screenshot output directory not initialized";
+      return false;
+    }
+    screenshotsReady = true;
+    return true;
+  }
+
+  bool captureScreenshot(const std::string &name) {
+    if (!screenshotsReady) {
+      return false;
+    }
+    bool ok = screenshot::capture(name);
+    if (!ok) {
+      std::cout << "Failed to capture screenshot: " << name << std::endl;
+    }
+    return ok;
+  }
+
+  std::filesystem::path screenshotsRoot() const {
+    return screenshot::output_root();
+  }
+
+  std::string screenshotUnavailableReason;
 };
 
 class LinuxTest: public BaseTest {
@@ -132,10 +177,7 @@ protected:
 #ifndef __linux__
     GTEST_SKIP_("Skipping, this test is for Linux only.");
 #endif
-  }
-
-  void TearDown() override {
-    BaseTest::TearDown();
+    BaseTest::SetUp();
   }
 };
 
@@ -145,23 +187,16 @@ protected:
 #if !defined(__APPLE__) || !defined(__MACH__)
     GTEST_SKIP_("Skipping, this test is for macOS only.");
 #endif
-  }
-
-  void TearDown() override {
-    BaseTest::TearDown();
+    BaseTest::SetUp();
   }
 };
 
 class WindowsTest: public BaseTest {
 protected:
-  void SetUp() override {
+  void SetUp() override {  // NOSONAR(cpp:S1185) - contains platform skip logic, not a trivial override
 #ifndef _WIN32
     GTEST_SKIP_("Skipping, this test is for Windows only.");
 #endif
     BaseTest::SetUp();
-  }
-
-  void TearDown() override {
-    BaseTest::TearDown();
   }
 };

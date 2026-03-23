@@ -1,0 +1,258 @@
+---
+name: Publish Screenshots
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+jobs:
+  publish:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+          path: run-screenshots
+          pattern: tray-screenshots-*
+
+      - name: Prepare Matrix Screenshot Directories
+        run: |
+          mkdir -p prepared
+
+          shopt -s nullglob
+          for artifact_dir in run-screenshots/tray-screenshots-*; do
+            [ -d "${artifact_dir}" ] || continue
+            matrix_name="${artifact_dir##*/tray-screenshots-}"
+            mkdir -p "prepared/${matrix_name}"
+            cp -R "${artifact_dir}/." "prepared/${matrix_name}/"
+          done
+
+          if [ -z "$(find prepared -mindepth 1 -print -quit)" ]; then
+            echo "No screenshots were downloaded from CI artifacts."
+            exit 1
+          fi
+
+          echo "Prepared screenshot files:"
+          find prepared -type f | sort
+
+      - name: Determine Context
+        id: context
+        env:
+          WORKFLOW_EVENT: ${{ github.event.workflow_run.event }}
+          WORKFLOW_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          event_name="${WORKFLOW_EVENT}"
+          head_branch="${WORKFLOW_HEAD_BRANCH}"
+          pr_number="$(jq -r '.workflow_run.pull_requests[0].number // empty' "${GITHUB_EVENT_PATH}")"
+
+          if [ -n "${pr_number}" ] && ! [[ "${pr_number}" =~ ^[0-9]+$ ]]; then
+            echo "Invalid pr_number value: ${pr_number}"
+            exit 1
+          fi
+
+          is_pr=false
+          if [ "${event_name}" = "pull_request" ] && [ -n "${pr_number}" ]; then
+            is_pr=true
+          fi
+
+          is_master_push=false
+          if [ "${event_name}" = "push" ] && [ "${head_branch}" = "master" ]; then
+            is_master_push=true
+          fi
+
+          {
+            echo "event_name=${event_name}"
+            echo "head_branch=${head_branch}"
+            echo "is_pr=${is_pr}"
+            echo "pr_number=${pr_number}"
+            echo "is_master_push=${is_master_push}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout Screenshots Branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          ref: screenshots
+          path: screenshots-repo
+
+      - name: Sync Screenshot Content
+        id: sync
+        if: steps.context.outputs.is_master_push == 'true' || steps.context.outputs.is_pr == 'true'
+        env:
+          PR_NUMBER: ${{ steps.context.outputs.pr_number }}
+        run: |
+          target_dir=""
+
+          if [ "${{ steps.context.outputs.is_master_push }}" = "true" ]; then
+            target_dir="screenshots-repo/baseline"
+          elif [ "${{ steps.context.outputs.is_pr }}" = "true" ]; then
+            if ! [[ "${PR_NUMBER}" =~ ^[0-9]+$ ]]; then
+              echo "Invalid PR number: ${PR_NUMBER}"
+              exit 1
+            fi
+            target_dir="screenshots-repo/pull-requests/PR-${PR_NUMBER}"
+          else
+            echo "Unsupported workflow context for screenshot sync."
+            exit 1
+          fi
+
+          mkdir -p "${target_dir}"
+
+          # Mirror the prepared set and delete files removed from CI output.
+          rsync -a --delete prepared/ "${target_dir}/"
+
+          echo "target_dir=${target_dir}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build PR Screenshot Comparison Comment
+        if: steps.context.outputs.is_pr == 'true'
+        env:
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.context.outputs.pr_number }}
+          BASELINE_ROOT: screenshots-repo/baseline
+          PR_ROOT: prepared
+        run: |
+          raw_base="https://raw.githubusercontent.com/${REPOSITORY}/screenshots"
+          baseline_root="${BASELINE_ROOT}"
+          pr_root="${PR_ROOT}"
+
+          {
+            echo "## Screenshot Comparison"
+            echo
+            printf "PR #%s screenshots vs \`screenshots\` baseline.\n\n" "${PR_NUMBER}"
+          } > pr-comment.md
+
+          tmp_baseline="$(mktemp)"
+          tmp_pr="$(mktemp)"
+          tmp_matrices="$(mktemp)"
+
+          if [ -d "${baseline_root}" ]; then
+            find "${baseline_root}" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' >> "${tmp_matrices}"
+          fi
+          if [ -d "${pr_root}" ]; then
+            find "${pr_root}" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' >> "${tmp_matrices}"
+          fi
+
+          if [ ! -s "${tmp_matrices}" ]; then
+            echo "No matrix screenshots were found in baseline or PR artifacts." >> pr-comment.md
+            rm -f "${tmp_baseline}" "${tmp_pr}" "${tmp_matrices}"
+            exit 0
+          fi
+
+          while IFS= read -r matrix; do
+            [ -n "${matrix}" ] || continue
+
+            baseline_matrix="${baseline_root}/${matrix}"
+            pr_matrix="${pr_root}/${matrix}"
+
+            : > "${tmp_baseline}"
+            : > "${tmp_pr}"
+
+            if [ -d "${baseline_matrix}" ]; then
+              (
+                cd "${baseline_matrix}"
+                find . -type f | sed 's#^\./##' | LC_ALL=C sort
+              ) > "${tmp_baseline}"
+            fi
+
+            if [ -d "${pr_matrix}" ]; then
+              (
+                cd "${pr_matrix}"
+                find . -type f | sed 's#^\./##' | LC_ALL=C sort
+              ) > "${tmp_pr}"
+            fi
+
+            {
+              printf "### Matrix: \`%s\`\n\n" "${matrix}"
+              echo "| Image | Baseline | PR |"
+              echo "| --- | --- | --- |"
+            } >> pr-comment.md
+
+            tmp_all="$(mktemp)"
+            cat "${tmp_baseline}" "${tmp_pr}" | LC_ALL=C sort -u > "${tmp_all}"
+
+            if [ ! -s "${tmp_all}" ]; then
+              echo "| _(none)_ |  |  |" >> pr-comment.md
+              echo >> pr-comment.md
+              rm -f "${tmp_all}"
+              continue
+            fi
+
+            while IFS= read -r rel_file; do
+              [ -n "${rel_file}" ] || continue
+
+              baseline_cell=""
+              if grep -Fxq "${rel_file}" "${tmp_baseline}"; then
+                baseline_cell="<img src=\"${raw_base}/baseline/${matrix}/${rel_file}\" width=\"320\" />"
+              fi
+
+              pr_cell=""
+              if grep -Fxq "${rel_file}" "${tmp_pr}"; then
+                pr_cell="<img src=\"${raw_base}/pull-requests/PR-${PR_NUMBER}/${matrix}/${rel_file}\" width=\"320\" />"
+              fi
+
+              printf "| \`%s\` | %s | %s |\n" "${rel_file}" "${baseline_cell}" "${pr_cell}" >> pr-comment.md
+            done < "${tmp_all}"
+
+            echo >> pr-comment.md
+            rm -f "${tmp_all}"
+          done < <(LC_ALL=C sort -u "${tmp_matrices}")
+
+          rm -f "${tmp_baseline}" "${tmp_pr}" "${tmp_matrices}"
+          echo "Generated pr-comment.md"
+
+      - name: Commit and Push Screenshot Changes
+        id: push
+        if: steps.context.outputs.is_master_push == 'true' || steps.context.outputs.is_pr == 'true'
+        env:
+          PR_NUMBER: ${{ steps.context.outputs.pr_number }}
+          WORKFLOW_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          cd screenshots-repo
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          commit_message=""
+          if [ "${{ steps.context.outputs.is_master_push }}" = "true" ]; then
+            git add -A baseline
+            commit_message="chore: update screenshots (${WORKFLOW_HEAD_SHA})"
+          elif [ "${{ steps.context.outputs.is_pr }}" = "true" ]; then
+            if ! [[ "${PR_NUMBER}" =~ ^[0-9]+$ ]]; then
+              echo "Invalid PR number: ${PR_NUMBER}"
+              exit 1
+            fi
+            git add -A "pull-requests/PR-${PR_NUMBER}"
+            commit_message="chore: update PR-${PR_NUMBER} screenshots (${WORKFLOW_HEAD_SHA})"
+          else
+            echo "Unsupported workflow context for commit/push."
+            exit 1
+          fi
+
+          if git diff --cached --quiet; then
+            echo "has_changes=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          git commit -m "${commit_message}"
+          git push origin screenshots
+          echo "has_changes=true" >> "${GITHUB_OUTPUT}"
+
+      - name: Post PR Comparison Comment
+        if: steps.context.outputs.is_pr == 'true'
+        uses: mshick/add-pr-comment@ffd016c7e151d97d69d21a843022fd4cd5b96fe5  # v3.9.0
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          issue: ${{ steps.context.outputs.pr_number }}
+          message-path: pr-comment.md
+          message-id: screenshot-comparison
+          refresh-message-position: true
