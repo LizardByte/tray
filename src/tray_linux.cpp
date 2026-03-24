@@ -14,9 +14,11 @@
 #include <QCursor>
 #include <QDBusInterface>
 #include <QDBusReply>
+#include <QFileInfo>
 #include <QIcon>
 #include <QMenu>
 #include <QSystemTrayIcon>
+#include <QUrl>
 #include <QVariantMap>
 
 namespace {
@@ -164,7 +166,14 @@ extern "C" {
     if (!text.isEmpty()) {
       const QString title = tray->notification_title != nullptr ? QString::fromUtf8(tray->notification_title) : QString();
       const char *icon_path = tray->notification_icon != nullptr ? tray->notification_icon : tray->icon;
-      const QString icon = icon_path != nullptr ? QString::fromUtf8(icon_path) : QString();
+      QString icon;
+      if (icon_path != nullptr) {
+        icon = QUrl::fromLocalFile(QFileInfo(QString::fromUtf8(icon_path)).absoluteFilePath()).toString();
+      }
+      QVariantMap hints;
+      if (!icon.isEmpty()) {
+        hints[QStringLiteral("image-path")] = icon;
+      }
       if (tray->notification_cb != nullptr) {
         void (*cb)() = tray->notification_cb;
         QObject::connect(g_tray_icon, &QSystemTrayIcon::messageClicked, [cb]() {
@@ -185,7 +194,7 @@ extern "C" {
           title,
           text,
           QStringList(),
-          QVariantMap(),
+          hints,
           5000
         );
         if (reply.isValid()) {
