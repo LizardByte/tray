@@ -29,6 +29,7 @@
 #if TRAY_QT
 constexpr const char *TRAY_ICON1 = "icon.png";
 constexpr const char *TRAY_ICON2 = "icon.png";
+constexpr const char *TRAY_ICON_THEMED = "mail-message-new";
 #elif TRAY_APPKIT
 constexpr const char *TRAY_ICON1 = "icon.png";
 constexpr const char *TRAY_ICON2 = "icon.png";
@@ -596,3 +597,36 @@ TEST_F(TrayTest, TestTrayShowMenu) {
 TEST_F(TrayTest, TestTrayExit) {
   tray_exit();
 }
+
+#if defined(TRAY_QT)
+
+TEST_F(TrayTest, TestTrayIconThemed) {
+  testTray.icon = TRAY_ICON_THEMED;
+  int result = tray_init(&testTray);
+  trayRunning = (result == 0);
+  ASSERT_EQ(result, 0);
+  WaitForTrayReady();
+  EXPECT_TRUE(captureScreenshot("tray_icon_themed"));
+  testTray.icon = TRAY_ICON1;
+}
+
+TEST_F(TrayTest, TestNotificationWithThemedIcon) {
+  int initResult = tray_init(&testTray);
+  trayRunning = (initResult == 0);
+  ASSERT_EQ(initResult, 0);
+
+  testTray.notification_title = "Test Notification";
+  testTray.notification_text = "This is a test notification message";
+  testTray.notification_icon = TRAY_ICON_THEMED;
+  tray_update(&testTray);
+
+  WaitForTrayReady();
+  EXPECT_TRUE(captureScreenshot("tray_notification_themed_icon"));
+
+  testTray.notification_title = nullptr;
+  testTray.notification_text = nullptr;
+  testTray.notification_icon = nullptr;
+  tray_update(&testTray);
+}
+
+#endif  // TRAY_QT

@@ -64,10 +64,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
+            adwaita-icon-theme \
             build-essential \
             cmake \
             imagemagick \
             ninja-build \
+            qt5-gtk-platformtheme \
             qtbase5-dev \
             xvfb
 
@@ -219,6 +221,8 @@ jobs:
         # TODO: tests randomly hang on Linux, https://github.com/LizardByte/tray/issues/45
         timeout-minutes: 3
         working-directory: build/tests
+        env:
+          QT_QPA_PLATFORMTHEME: gtk3
         run: ./test_tray --gtest_color=yes --gtest_output=xml:test_results.xml
 
       - name: Upload screenshots

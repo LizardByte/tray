@@ -146,7 +146,10 @@ extern "C" {
       return;
     }
 
-    g_tray_icon->setIcon(QIcon(QString::fromUtf8(tray->icon)));
+    const QString icon_str = QString::fromUtf8(tray->icon);
+    g_tray_icon->setIcon(
+      QFileInfo(icon_str).exists() ? QIcon(icon_str) : QIcon::fromTheme(icon_str)
+    );
 
     if (tray->tooltip != nullptr) {
       g_tray_icon->setToolTip(QString::fromUtf8(tray->tooltip));
@@ -168,7 +171,8 @@ extern "C" {
       const char *icon_path = tray->notification_icon != nullptr ? tray->notification_icon : tray->icon;
       QString icon;
       if (icon_path != nullptr) {
-        icon = QUrl::fromLocalFile(QFileInfo(QString::fromUtf8(icon_path)).absoluteFilePath()).toString();
+        QFileInfo fi(QString::fromUtf8(icon_path));
+        icon = fi.exists() ? QUrl::fromLocalFile(fi.absoluteFilePath()).toString() : QString::fromUtf8(icon_path);
       }
       QVariantMap hints;
       if (!icon.isEmpty()) {
