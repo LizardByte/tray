@@ -16,7 +16,7 @@
   // clang-format on
   #define TRAY_WINAPI 1
 #elif defined(__linux__) || defined(linux) || defined(__linux)
-  #define TRAY_APPINDICATOR 1
+  #define TRAY_QT 1
 #elif defined(__APPLE__) || defined(__MACH__)
   #include <Carbon/Carbon.h>
   #define TRAY_APPKIT 1
@@ -26,9 +26,9 @@
 #include "src/tray.h"
 #include "tests/screenshot_utils.h"
 
-#if TRAY_APPINDICATOR
-constexpr const char *TRAY_ICON1 = "mail-message-new";
-constexpr const char *TRAY_ICON2 = "mail-message-new";
+#if TRAY_QT
+constexpr const char *TRAY_ICON1 = "icon.png";
+constexpr const char *TRAY_ICON2 = "icon.png";
 #elif TRAY_APPKIT
 constexpr const char *TRAY_ICON1 = "icon.png";
 constexpr const char *TRAY_ICON2 = "icon.png";
@@ -159,7 +159,6 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F generates subclasses that need access
       GTEST_SKIP() << "Screenshot output path not initialized";
     }
 
-#if defined(TRAY_WINAPI) || defined(TRAY_APPKIT)
     // Ensure icon files exist in test binary directory
     std::filesystem::path projectRoot = testBinaryDir.parent_path();
     std::filesystem::path iconSource;
@@ -182,7 +181,6 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F generates subclasses that need access
         }
       }
     }
-#endif
 
     trayRunning = false;
     testTray.icon = TRAY_ICON1;
@@ -199,7 +197,7 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F generates subclasses that need access
   // Process pending events to allow tray icon to appear.
   // Call this ONLY before screenshots to ensure the icon is visible.
   void WaitForTrayReady() {
-#if defined(TRAY_APPINDICATOR)
+#if defined(TRAY_QT)
     for (int i = 0; i < 100; i++) {
       tray_loop(0);
       std::this_thread::sleep_for(std::chrono::milliseconds(5));
@@ -405,7 +403,7 @@ TEST_F(TrayTest, TestNotificationCallback) {
 
   tray_update(&testTray);
 
-  // Note: callback would be invoked by user interaction in real scenario
+  // Note: callback would be invoked by user interaction in a real scenario
   // In test environment, we verify it's set correctly
   EXPECT_NE(testTray.notification_cb, nullptr);
 

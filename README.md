@@ -15,11 +15,10 @@ The code is C++ friendly and will compile fine in C++98 and up. This is a fork o
 This fork adds the following features:
 
 - system tray notifications
-- support for both linux appindicator versions
 - unit tests
 - code coverage
-- refactored code, e.g. moved source code into the `src` directory
-- doxygen documentation, and readthedocs configuration
+- refactored code, e.g., moved source code into the `src` directory
+- doxygen documentation and readthedocs configuration
 
 ## Screenshots
 
@@ -33,14 +32,14 @@ This fork adds the following features:
 
 ## Supported platforms
 
-* Linux/Gtk (libayatana-appindicator3 or libappindicator3)
+* Linux/Qt (Qt5 or Qt6 Widgets)
 * Windows XP or newer (shellapi.h)
 * MacOS (Cocoa/AppKit)
 
 ## Prerequisites
 
 * CMake
-* [Ninja](https://ninja-build.org/), in order to have the same build commands on all platforms 
+* [Ninja](https://ninja-build.org/), to have the same build commands on all platforms 
 
 ### Linux Dependencies
 
@@ -48,17 +47,17 @@ This fork adds the following features:
 
 - <b class="tab-title">Arch</b>
     ```bash
-    sudo pacman -S libayatana-appindicator
+    sudo pacman -S qt6-base
     ```
 
 - <b class="tab-title">Debian/Ubuntu</b>
     ```bash
-    sudo apt install libappindicator3-dev
+    sudo apt install qtbase5-dev
     ```
 
 - <b class="tab-title">Fedora</b>
     ```bash
-    sudo dnf install libappindicator-gtk3-devel
+    sudo dnf install qt6-qtbase-devel
     ```
 
 </div>
