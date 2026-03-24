@@ -12,9 +12,12 @@
 // Qt includes
 #include <QApplication>
 #include <QCursor>
+#include <QDBusInterface>
+#include <QDBusReply>
 #include <QIcon>
 #include <QMenu>
 #include <QSystemTrayIcon>
+#include <QVariantMap>
 
 namespace {
   std::unique_ptr<QApplication> g_app;  // NOSONAR(cpp:S5421) - mutable state, not const
@@ -22,6 +25,22 @@ namespace {
   int g_loop_result = 0;  // NOSONAR(cpp:S5421) - mutable state, not const
   bool g_app_owned = false;  // NOSONAR(cpp:S5421) - mutable state, not const
   bool g_exit_pending = false;  // NOSONAR(cpp:S5421) - mutable state, not const
+  uint g_notification_id = 0;  // NOSONAR(cpp:S5421) - tracks last D-Bus notification ID for proper cleanup
+
+  void close_notification() {
+    if (g_notification_id == 0) {
+      return;
+    }
+    QDBusInterface iface(
+      QStringLiteral("org.freedesktop.Notifications"),
+      QStringLiteral("/org/freedesktop/Notifications"),
+      QStringLiteral("org.freedesktop.Notifications")
+    );
+    if (iface.isValid()) {
+      iface.call(QStringLiteral("CloseNotification"), g_notification_id);
+    }
+    g_notification_id = 0;
+  }
 
   QMenu *build_menu(struct tray_menu *m, QWidget *parent) {
     auto *menu = new QMenu(parent);  // NOSONAR(cpp:S5025) - submenus owned by parent via Qt; top-level deleted manually
@@ -51,6 +70,7 @@ namespace {
   }
 
   void destroy_tray() {
+    close_notification();
     if (g_tray_icon != nullptr) {
       g_tray_icon->hide();
       QMenu *menu = g_tray_icon->contextMenu();
@@ -58,6 +78,17 @@ namespace {
       delete g_tray_icon;  // NOSONAR(cpp:S5025) - raw pointer; deleted explicitly before QApplication is destroyed
       g_tray_icon = nullptr;
       delete menu;  // NOSONAR(cpp:S5025) - QSystemTrayIcon does not own the context menu
+    }
+  }
+
+  void destroy_app() {
+    if (g_app_owned && g_app) {
+      // Destroy QApplication here (during active program execution) rather than letting
+      // the unique_ptr destructor run at static-destruction time. At static-destruction
+      // time, Qt's lazily-initialized D-Bus statics have already been destroyed (LIFO
+      // order), so calling QApplication::~QApplication() then would crash.
+      g_app.reset();
+      g_app_owned = false;
     }
   }
 }  // namespace
@@ -73,6 +104,7 @@ extern "C" {
 
     destroy_tray();
     g_loop_result = 0;
+    g_exit_pending = false;
 
     g_tray_icon = new QSystemTrayIcon();  // NOSONAR(cpp:S5025) - raw pointer; deleted in destroy_tray() before QApplication
 
@@ -87,8 +119,20 @@ extern "C" {
   }
 
   int tray_loop(int blocking) {
+    if (g_exit_pending) {
+      g_exit_pending = false;
+      destroy_tray();
+      destroy_app();
+      return g_loop_result;
+    }
+
     if (blocking) {
       QApplication::exec();
+      if (g_exit_pending) {
+        g_exit_pending = false;
+        destroy_tray();
+        destroy_app();
+      }
     } else {
       QApplication::processEvents();
     }
@@ -116,17 +160,40 @@ extern "C" {
 
     const QString text = tray->notification_text != nullptr ? QString::fromUtf8(tray->notification_text) : QString();
     QObject::disconnect(g_tray_icon, &QSystemTrayIcon::messageClicked, nullptr, nullptr);
+    close_notification();
     if (!text.isEmpty()) {
       const QString title = tray->notification_title != nullptr ? QString::fromUtf8(tray->notification_title) : QString();
+      const char *icon_path = tray->notification_icon != nullptr ? tray->notification_icon : tray->icon;
+      const QString icon = icon_path != nullptr ? QString::fromUtf8(icon_path) : QString();
       if (tray->notification_cb != nullptr) {
         void (*cb)() = tray->notification_cb;
         QObject::connect(g_tray_icon, &QSystemTrayIcon::messageClicked, [cb]() {
           cb();
         });
       }
-      g_tray_icon->showMessage(title, text, QSystemTrayIcon::Information, 5000);
-    } else {
-      g_tray_icon->showMessage(QString(), QString(), QSystemTrayIcon::NoIcon, 0);
+      QDBusInterface iface(
+        QStringLiteral("org.freedesktop.Notifications"),
+        QStringLiteral("/org/freedesktop/Notifications"),
+        QStringLiteral("org.freedesktop.Notifications")
+      );
+      if (iface.isValid()) {
+        QDBusReply<uint> reply = iface.call(
+          QStringLiteral("Notify"),
+          QStringLiteral("tray"),
+          static_cast<uint>(0),
+          icon,
+          title,
+          text,
+          QStringList(),
+          QVariantMap(),
+          5000
+        );
+        if (reply.isValid()) {
+          g_notification_id = reply.value();
+        }
+      } else {
+        g_tray_icon->showMessage(title, text, QSystemTrayIcon::Information, 5000);
+      }
     }
   }
 
@@ -142,12 +209,9 @@ extern "C" {
 
   void tray_exit(void) {
     g_loop_result = -1;
-    destroy_tray();
-
-    if (g_app_owned) {
+    g_exit_pending = true;
+    if (g_app_owned && QApplication::instance() != nullptr) {
       QApplication::quit();
-      g_app_owned = false;
-      g_app.reset();
     }
   }
 
