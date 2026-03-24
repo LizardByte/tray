@@ -39,7 +39,7 @@ This fork adds the following features:
 ## Prerequisites
 
 * CMake
-* [Ninja](https://ninja-build.org/), to have the same build commands on all platforms 
+* [Ninja](https://ninja-build.org/), to have the same build commands on all platforms.
 
 ### Linux Dependencies
 
