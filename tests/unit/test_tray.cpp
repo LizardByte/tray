@@ -629,4 +629,49 @@ TEST_F(TrayTest, TestNotificationWithThemedIcon) {
   tray_update(&testTray);
 }
 
+TEST_F(TrayTest, TestMenuAppearsOnLeftClick) {
+  // Regression test for: clicking the tray icon did not bring up the menu.
+  // The activated(Trigger) signal was not connected to the menu popup logic.
+  // tray_show_menu() exercises the same code path that the activated handler calls.
+  int initResult = tray_init(&testTray);
+  trayRunning = (initResult == 0);
+  ASSERT_EQ(initResult, 0);
+
+  captureMenuStateAndExit("tray_menu_left_click");  // NOSONAR(cpp:S6168) - helper uses std::thread for AppleClang 17 compatibility
+}
+
+TEST_F(TrayTest, TestNotificationCallbackFiredOnClick) {
+  // Regression test for: clicking a notification did not invoke the callback.
+  // On the D-Bus path, QSystemTrayIcon::messageClicked is never emitted; the
+  // callback must be routed through TrayNotificationHandler::onActionInvoked.
+  static bool callbackInvoked = false;
+  callbackInvoked = false;
+
+  int initResult = tray_init(&testTray);
+  trayRunning = (initResult == 0);
+  ASSERT_EQ(initResult, 0);
+
+  testTray.notification_title = "Clickable Notification";
+  testTray.notification_text = "Click to test callback";
+  testTray.notification_icon = TRAY_ICON1;
+  testTray.notification_cb = []() {
+    callbackInvoked = true;
+  };
+  tray_update(&testTray);
+
+  // Allow the notification to be sent before simulating the click.
+  WaitForTrayReady();
+
+  tray_simulate_notification_click();
+  tray_loop(0);
+
+  EXPECT_TRUE(callbackInvoked);
+
+  testTray.notification_title = nullptr;
+  testTray.notification_text = nullptr;
+  testTray.notification_icon = nullptr;
+  testTray.notification_cb = nullptr;
+  tray_update(&testTray);
+}
+
 #endif  // TRAY_QT

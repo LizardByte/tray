@@ -130,6 +130,11 @@ void tray_show_menu(void) {
   [statusItem popUpStatusItemMenu:statusItem.menu];
 }
 
+void tray_simulate_notification_click(void) {
+  // macOS notification clicks are handled by the OS notification center.
+  // Simulation is not supported here.
+}
+
 void tray_exit(void) {
   // Remove the status item from the status bar on the main thread
   // NSStatusBar operations must be performed on the main thread

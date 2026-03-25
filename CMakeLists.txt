@@ -32,17 +32,17 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(PkgConfig)
 
 file(GLOB TRAY_SOURCES
-        "${CMAKE_SOURCE_DIR}/src/*.h"
-        "${CMAKE_SOURCE_DIR}/icons/*.ico"
-        "${CMAKE_SOURCE_DIR}/icons/*.png")
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h"
+        "${CMAKE_CURRENT_SOURCE_DIR}/icons/*.ico"
+        "${CMAKE_CURRENT_SOURCE_DIR}/icons/*.png")
 
 if(WIN32)
-    list(APPEND TRAY_SOURCES "${CMAKE_SOURCE_DIR}/src/tray_windows.c")
+    list(APPEND TRAY_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/tray_windows.c")
 else()
     if(UNIX)
         if(APPLE)
             find_library(COCOA Cocoa REQUIRED)
-            list(APPEND TRAY_SOURCES "${CMAKE_SOURCE_DIR}/src/tray_darwin.m")
+            list(APPEND TRAY_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/tray_darwin.m")
         else()
             find_package(Qt6 QUIET COMPONENTS Widgets DBus)
             if(Qt6_FOUND)
@@ -52,7 +52,7 @@ else()
                 set(TRAY_QT_VERSION 5)
             endif()
             set(CMAKE_AUTOMOC ON)
-            list(APPEND TRAY_SOURCES "${CMAKE_SOURCE_DIR}/src/tray_linux.cpp")
+            list(APPEND TRAY_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/tray_linux.cpp")
         endif()
     endif()
 endif()
@@ -84,11 +84,11 @@ endif()
 
 add_library(tray::tray ALIAS ${PROJECT_NAME})
 
-add_executable(tray_example "${CMAKE_SOURCE_DIR}/src/example.c")
+add_executable(tray_example "${CMAKE_CURRENT_SOURCE_DIR}/src/example.c")
 target_link_libraries(tray_example tray::tray)
 
-configure_file("${CMAKE_SOURCE_DIR}/icons/icon.ico" "${CMAKE_BINARY_DIR}/icon.ico" COPYONLY)
-configure_file("${CMAKE_SOURCE_DIR}/icons/icon.png" "${CMAKE_BINARY_DIR}/icon.png" COPYONLY)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/icons/icon.ico" "${CMAKE_CURRENT_BINARY_DIR}/icon.ico" COPYONLY)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/icons/icon.png" "${CMAKE_CURRENT_BINARY_DIR}/icon.png" COPYONLY)
 
 INSTALL(TARGETS tray tray DESTINATION lib)
 

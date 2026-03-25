@@ -12,6 +12,7 @@
 // Qt includes
 #include <QApplication>
 #include <QCursor>
+#include <QDBusConnection>
 #include <QDBusInterface>
 #include <QDBusReply>
 #include <QFileInfo>
@@ -21,9 +22,43 @@
 #include <QUrl>
 #include <QVariantMap>
 
+/**
+ * @brief Handles D-Bus notification action signals.
+ *
+ * Receives the org.freedesktop.Notifications ActionInvoked signal so that
+ * notification click callbacks work when notifications are sent via D-Bus
+ * rather than Qt's built-in balloon (QSystemTrayIcon::showMessage).
+ *
+ * Defined in tray_linux.cpp rather than a separate header to keep the moc
+ * output self-contained via the inline `#include "tray_linux.moc"` at the
+ * bottom of this file. Any CMake target that compiles tray_linux.cpp with
+ * AUTOMOC ON will automatically generate and inline the moc output.
+ */
+class TrayNotificationHandler: public QObject {
+  Q_OBJECT
+
+public:
+  uint notification_id = 0;  ///< ID of the most recently sent D-Bus notification.
+  void (*cb)() = nullptr;  ///< Callback to invoke when the notification is activated.
+
+public slots:
+
+  /**
+   * @brief Invoked when a D-Bus notification action is triggered.
+   * @param id The notification ID.
+   * @param action_key The action key that was triggered.
+   */
+  void onActionInvoked(uint id, const QString &action_key) {
+    if (id == notification_id && cb != nullptr && action_key == QLatin1String("default")) {
+      cb();
+    }
+  }
+};
+
 namespace {
   std::unique_ptr<QApplication> g_app;  // NOSONAR(cpp:S5421) - mutable state, not const
   QSystemTrayIcon *g_tray_icon = nullptr;  // NOSONAR(cpp:S5421) - mutable state, not const
+  TrayNotificationHandler *g_notification_handler = nullptr;  // NOSONAR(cpp:S5421) - mutable state, not const
   int g_loop_result = 0;  // NOSONAR(cpp:S5421) - mutable state, not const
   bool g_app_owned = false;  // NOSONAR(cpp:S5421) - mutable state, not const
   bool g_exit_pending = false;  // NOSONAR(cpp:S5421) - mutable state, not const
@@ -73,6 +108,10 @@ namespace {
 
   void destroy_tray() {
     close_notification();
+    if (g_notification_handler != nullptr) {
+      g_notification_handler->notification_id = 0;
+      g_notification_handler->cb = nullptr;
+    }
     if (g_tray_icon != nullptr) {
       g_tray_icon->hide();
       QMenu *menu = g_tray_icon->contextMenu();
@@ -84,6 +123,18 @@ namespace {
   }
 
   void destroy_app() {
+    if (g_notification_handler != nullptr) {
+      QDBusConnection::sessionBus().disconnect(
+        QStringLiteral("org.freedesktop.Notifications"),
+        QStringLiteral("/org/freedesktop/Notifications"),
+        QStringLiteral("org.freedesktop.Notifications"),
+        QStringLiteral("ActionInvoked"),
+        g_notification_handler,
+        SLOT(onActionInvoked(uint, QString))
+      );
+      delete g_notification_handler;  // NOSONAR(cpp:S5025) - raw pointer; deleted explicitly before QApplication
+      g_notification_handler = nullptr;
+    }
     if (g_app_owned && g_app) {
       // Destroy QApplication here (during active program execution) rather than letting
       // the unique_ptr destructor run at static-destruction time. At static-destruction
@@ -113,6 +164,35 @@ extern "C" {
     if (!QSystemTrayIcon::isSystemTrayAvailable()) {
       destroy_tray();
       return -1;
+    }
+
+    // Show the context menu on left-click (Trigger) in addition to the default right-click path.
+    // QSystemTrayIcon::setContextMenu only handles right-click on X11/XEmbed; SNI-based desktops
+    // may not show the menu at all without this explicit connection.
+    QObject::connect(g_tray_icon, &QSystemTrayIcon::activated, [](QSystemTrayIcon::ActivationReason reason) {
+      if (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::MiddleClick) {
+        if (g_tray_icon != nullptr) {
+          QMenu *menu = g_tray_icon->contextMenu();
+          if (menu != nullptr) {
+            menu->popup(QCursor::pos());
+          }
+        }
+      }
+    });
+
+    // Create the D-Bus ActionInvoked handler once per QApplication lifetime.
+    // This receives the "default" action event when the user clicks a D-Bus notification,
+    // which QSystemTrayIcon::messageClicked does NOT emit for D-Bus-dispatched notifications.
+    if (g_notification_handler == nullptr) {
+      g_notification_handler = new TrayNotificationHandler();  // NOSONAR(cpp:S5025) - deleted in destroy_app()
+      QDBusConnection::sessionBus().connect(
+        QStringLiteral("org.freedesktop.Notifications"),
+        QStringLiteral("/org/freedesktop/Notifications"),
+        QStringLiteral("org.freedesktop.Notifications"),
+        QStringLiteral("ActionInvoked"),
+        g_notification_handler,
+        SLOT(onActionInvoked(uint, QString))
+      );
     }
 
     tray_update(tray);
@@ -164,8 +244,15 @@ extern "C" {
     }
 
     const QString text = tray->notification_text != nullptr ? QString::fromUtf8(tray->notification_text) : QString();
+
+    // Reset previous notification state before setting up the new one.
+    if (g_notification_handler != nullptr) {
+      g_notification_handler->notification_id = 0;
+      g_notification_handler->cb = nullptr;
+    }
     QObject::disconnect(g_tray_icon, &QSystemTrayIcon::messageClicked, nullptr, nullptr);
     close_notification();
+
     if (!text.isEmpty()) {
       const QString title = tray->notification_title != nullptr ? QString::fromUtf8(tray->notification_title) : QString();
       const char *icon_path = tray->notification_icon != nullptr ? tray->notification_icon : tray->icon;
@@ -178,18 +265,25 @@ extern "C" {
       if (!icon.isEmpty()) {
         hints[QStringLiteral("image-path")] = icon;
       }
-      if (tray->notification_cb != nullptr) {
-        void (*cb)() = tray->notification_cb;
-        QObject::connect(g_tray_icon, &QSystemTrayIcon::messageClicked, [cb]() {
-          cb();
-        });
-      }
+
       QDBusInterface iface(
         QStringLiteral("org.freedesktop.Notifications"),
         QStringLiteral("/org/freedesktop/Notifications"),
         QStringLiteral("org.freedesktop.Notifications")
       );
       if (iface.isValid()) {
+        // Include the "default" action so that clicking the notification body fires ActionInvoked.
+        // QSystemTrayIcon::messageClicked is NOT emitted for D-Bus-dispatched notifications,
+        // so the callback must be routed through TrayNotificationHandler::onActionInvoked instead.
+        QStringList actions;
+        if (tray->notification_cb != nullptr) {
+          actions << QStringLiteral("default") << QString();
+        }
+        // Store the callback before calling Notify so tray_simulate_notification_click works
+        // even when the notification daemon is unavailable and the D-Bus reply is invalid.
+        if (g_notification_handler != nullptr) {
+          g_notification_handler->cb = tray->notification_cb;
+        }
         QDBusReply<uint> reply = iface.call(
           QStringLiteral("Notify"),
           QStringLiteral("tray"),
@@ -197,14 +291,26 @@ extern "C" {
           icon,
           title,
           text,
-          QStringList(),
+          actions,
           hints,
           5000
         );
         if (reply.isValid()) {
           g_notification_id = reply.value();
+          if (g_notification_handler != nullptr) {
+            g_notification_handler->notification_id = g_notification_id;
+          }
         }
       } else {
+        // D-Bus unavailable: fall back to Qt's built-in balloon and messageClicked signal.
+        if (tray->notification_cb != nullptr && g_notification_handler != nullptr) {
+          g_notification_handler->cb = tray->notification_cb;
+          QObject::connect(g_tray_icon, &QSystemTrayIcon::messageClicked, []() {
+            if (g_notification_handler != nullptr && g_notification_handler->cb != nullptr) {
+              g_notification_handler->cb();
+            }
+          });
+        }
         g_tray_icon->showMessage(title, text, QSystemTrayIcon::Information, 5000);
       }
     }
@@ -220,6 +326,21 @@ extern "C" {
     }
   }
 
+  void tray_simulate_notification_click(void) {
+    if (g_notification_handler != nullptr && g_notification_handler->cb != nullptr) {
+      if (g_notification_handler->notification_id != 0) {
+        // Simulate the D-Bus ActionInvoked signal for the current notification.
+        g_notification_handler->onActionInvoked(
+          g_notification_handler->notification_id,
+          QStringLiteral("default")
+        );
+      } else {
+        // Fallback path (no D-Bus): invoke the callback directly.
+        g_notification_handler->cb();
+      }
+    }
+  }
+
   void tray_exit(void) {
     g_loop_result = -1;
     g_exit_pending = true;
@@ -229,3 +350,8 @@ extern "C" {
   }
 
 }  // extern "C"
+
+// Must be included at the end of a .cpp file when Q_OBJECT classes are defined
+// in that .cpp (not in a header). AUTOMOC sees this directive and generates
+// tray_linux.moc, which is then inlined here at compile time.
+#include "tray_linux.moc"

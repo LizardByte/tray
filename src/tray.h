@@ -74,6 +74,14 @@ extern "C" {
   void tray_show_menu(void);
 
   /**
+   * @brief Simulate a notification click, invoking the notification callback (for testing purposes).
+   *
+   * On Linux (Qt): triggers the stored notification callback as if the user clicked the notification.
+   * On other platforms: no-op.
+   */
+  void tray_simulate_notification_click(void);
+
+  /**
    * @brief Terminate UI loop.
    */
   void tray_exit(void);

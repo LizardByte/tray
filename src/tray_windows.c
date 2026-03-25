@@ -331,6 +331,11 @@ void tray_show_menu(void) {
   PostMessage(hwnd, WM_TRAY_CALLBACK_MESSAGE, 0, WM_RBUTTONUP);
 }
 
+void tray_simulate_notification_click(void) {
+  // Windows handles notification clicks via NIN_BALLOONUSERCLICK in the window proc.
+  // Simulating this from outside the message pump is not supported here.
+}
+
 void tray_exit(void) {
   Shell_NotifyIconW(NIM_DELETE, &nid);
   SendMessage(hwnd, WM_CLOSE, 0, 0);
