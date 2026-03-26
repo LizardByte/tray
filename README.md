@@ -43,21 +43,36 @@ This fork adds the following features:
 
 ### Linux Dependencies
 
+Install either Qt6 _or_ Qt5 development packages. The Linux backend requires
+Qt Widgets, DBus, and Svg modules.
+
 <div class="tabbed">
 
 - <b class="tab-title">Arch</b>
     ```bash
-    sudo pacman -S qt6-base
+    # Qt6
+    sudo pacman -S qt6-base qt6-svg
+
+    # Qt5
+    sudo pacman -S qt5-base qt5-svg
     ```
 
 - <b class="tab-title">Debian/Ubuntu</b>
     ```bash
-    sudo apt install qtbase5-dev
+    # Qt6
+    sudo apt install qt6-base-dev qt6-svg-dev
+
+    # Qt5
+    sudo apt install qtbase5-dev libqt5svg5-dev
     ```
 
 - <b class="tab-title">Fedora</b>
     ```bash
-    sudo dnf install qt6-qtbase-devel
+    # Qt6
+    sudo dnf install qt6-qtbase-devel qt6-qtsvg-devel
+
+    # Qt5
+    sudo dnf install qt5-qtbase-devel qt5-qtsvg-devel
     ```
 
 </div>
