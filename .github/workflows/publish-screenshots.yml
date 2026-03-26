@@ -255,4 +255,3 @@ jobs:
           issue: ${{ steps.context.outputs.pr_number }}
           message-path: pr-comment.md
           message-id: screenshot-comparison
-          refresh-message-position: true
