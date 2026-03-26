@@ -34,7 +34,9 @@ find_package(PkgConfig)
 file(GLOB TRAY_SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h"
         "${CMAKE_CURRENT_SOURCE_DIR}/icons/*.ico"
-        "${CMAKE_CURRENT_SOURCE_DIR}/icons/*.png")
+        "${CMAKE_CURRENT_SOURCE_DIR}/icons/*.png"
+        "${CMAKE_CURRENT_SOURCE_DIR}/icons/*.svg"
+)
 
 if(WIN32)
     list(APPEND TRAY_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/tray_windows.c")
@@ -44,11 +46,11 @@ else()
             find_library(COCOA Cocoa REQUIRED)
             list(APPEND TRAY_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/tray_darwin.m")
         else()
-            find_package(Qt6 QUIET COMPONENTS Widgets DBus)
+            find_package(Qt6 QUIET COMPONENTS Widgets DBus Svg)
             if(Qt6_FOUND)
                 set(TRAY_QT_VERSION 6)
             else()
-                find_package(Qt5 REQUIRED COMPONENTS Widgets DBus)
+                find_package(Qt5 REQUIRED COMPONENTS Widgets DBus Svg)
                 set(TRAY_QT_VERSION 5)
             endif()
             set(CMAKE_AUTOMOC ON)
@@ -74,9 +76,9 @@ else()
         else()
             list(APPEND TRAY_DEFINITIONS TRAY_QT=1)
             if(TRAY_QT_VERSION EQUAL 6)
-                list(APPEND TRAY_EXTERNAL_LIBRARIES Qt6::Widgets Qt6::DBus)
+                list(APPEND TRAY_EXTERNAL_LIBRARIES Qt6::Widgets Qt6::DBus Qt6::Svg)
             else()
-                list(APPEND TRAY_EXTERNAL_LIBRARIES Qt5::Widgets Qt5::DBus)
+                list(APPEND TRAY_EXTERNAL_LIBRARIES Qt5::Widgets Qt5::DBus Qt5::Svg)
             endif()
         endif()
     endif()
@@ -89,6 +91,7 @@ target_link_libraries(tray_example tray::tray)
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/icons/icon.ico" "${CMAKE_CURRENT_BINARY_DIR}/icon.ico" COPYONLY)
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/icons/icon.png" "${CMAKE_CURRENT_BINARY_DIR}/icon.png" COPYONLY)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/icons/icon.svg" "${CMAKE_CURRENT_BINARY_DIR}/icon.svg" COPYONLY)
 
 INSTALL(TARGETS tray tray DESTINATION lib)
 

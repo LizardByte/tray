@@ -29,6 +29,7 @@
 #if TRAY_QT
 constexpr const char *TRAY_ICON1 = "icon.png";
 constexpr const char *TRAY_ICON2 = "icon.png";
+constexpr const char *TRAY_ICON_SVG = "icon.svg";
 constexpr const char *TRAY_ICON_THEMED = "mail-message-new";
 #elif TRAY_APPKIT
 constexpr const char *TRAY_ICON1 = "icon.png";
@@ -162,26 +163,33 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F generates subclasses that need access
 
     // Ensure icon files exist in test binary directory
     std::filesystem::path projectRoot = testBinaryDir.parent_path();
-    std::filesystem::path iconSource;
+    auto ensureIconInTestDir = [projectRoot, this](const char *iconName) {
+      std::filesystem::path iconSource;
 
-    if (std::filesystem::exists(projectRoot / "icons" / TRAY_ICON1)) {
-      iconSource = projectRoot / "icons" / TRAY_ICON1;
-    } else if (std::filesystem::exists(projectRoot / TRAY_ICON1)) {
-      iconSource = projectRoot / TRAY_ICON1;
-    } else if (std::filesystem::exists(std::filesystem::path(TRAY_ICON1))) {
-      iconSource = std::filesystem::path(TRAY_ICON1);
-    }
+      if (std::filesystem::exists(projectRoot / "icons" / iconName)) {
+        iconSource = projectRoot / "icons" / iconName;
+      } else if (std::filesystem::exists(projectRoot / iconName)) {
+        iconSource = projectRoot / iconName;
+      } else if (std::filesystem::exists(std::filesystem::path(iconName))) {
+        iconSource = std::filesystem::path(iconName);
+      }
 
-    if (!iconSource.empty()) {
-      std::filesystem::path iconDest = testBinaryDir / TRAY_ICON1;
-      if (!std::filesystem::exists(iconDest)) {
-        std::error_code ec;
-        std::filesystem::copy_file(iconSource, iconDest, ec);
-        if (ec) {
-          std::cout << "Warning: Failed to copy icon file: " << ec.message() << std::endl;
+      if (!iconSource.empty()) {
+        std::filesystem::path iconDest = testBinaryDir / iconName;
+        if (!std::filesystem::exists(iconDest)) {
+          std::error_code ec;
+          std::filesystem::copy_file(iconSource, iconDest, ec);
+          if (ec) {
+            std::cout << "Warning: Failed to copy icon file: " << ec.message() << std::endl;
+          }
         }
       }
-    }
+    };
+
+    ensureIconInTestDir(TRAY_ICON1);
+#if defined(TRAY_QT)
+    ensureIconInTestDir(TRAY_ICON_SVG);
+#endif
 
     trayRunning = false;
     testTray.icon = TRAY_ICON1;
@@ -607,6 +615,16 @@ TEST_F(TrayTest, TestTrayIconThemed) {
   ASSERT_EQ(result, 0);
   WaitForTrayReady();
   EXPECT_TRUE(captureScreenshot("tray_icon_themed"));
+  testTray.icon = TRAY_ICON1;
+}
+
+TEST_F(TrayTest, TestTrayIconSvgFile) {
+  testTray.icon = TRAY_ICON_SVG;
+  int result = tray_init(&testTray);
+  trayRunning = (result == 0);
+  ASSERT_EQ(result, 0);
+  WaitForTrayReady();
+  EXPECT_TRUE(captureScreenshot("tray_icon_svg"));
   testTray.icon = TRAY_ICON1;
 }
 

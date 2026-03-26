@@ -11,6 +11,7 @@
 
 // Qt includes
 #include <QApplication>
+#include <QCoreApplication>
 #include <QCursor>
 #include <QDBusConnection>
 #include <QDBusInterface>
@@ -21,6 +22,7 @@
 #include <QMenu>
 #include <QPixmap>
 #include <QScreen>
+#include <QStyle>
 #include <QSystemTrayIcon>
 #include <QTimer>
 #include <QUrl>
@@ -69,6 +71,39 @@ namespace {
   uint g_notification_id = 0;  // NOSONAR(cpp:S5421) - tracks last D-Bus notification ID for proper cleanup
   void (*g_log_cb)(int, const char *) = nullptr;  // NOSONAR(cpp:S5421) - mutable state, not const
 
+  bool is_wayland_session() {
+    const QString platform = QGuiApplication::platformName().toLower();
+    if (platform.contains(QStringLiteral("wayland"))) {
+      return true;
+    }
+    return !qgetenv("WAYLAND_DISPLAY").isEmpty();
+  }
+
+  QPoint screen_anchor_point(const QScreen *screen) {
+    if (screen == nullptr) {
+      return QPoint();
+    }
+
+    const QRect full = screen->geometry();
+    const QRect avail = screen->availableGeometry();
+
+    if (avail.top() > full.top()) {
+      return QPoint(avail.right(), avail.top());
+    }
+    if (avail.bottom() < full.bottom()) {
+      return QPoint(avail.right(), avail.bottom());
+    }
+    if (avail.left() > full.left()) {
+      return QPoint(avail.left(), avail.bottom());
+    }
+    if (avail.right() < full.right()) {
+      return QPoint(avail.right(), avail.bottom());
+    }
+
+    // Some compositors report no reserved panel area; top-right is a safer fallback than (0, 0).
+    return avail.topRight();
+  }
+
   /**
    * @brief Qt message handler that forwards to the registered log callback.
    * @param type The Qt message type.
@@ -114,7 +149,7 @@ namespace {
    *
    * @return The point at which to show the context menu.
    */
-  QPoint calculateMenuPosition() {
+  QPoint calculateMenuPosition(const QPoint &preferred_pos = QPoint()) {
     if (g_tray_icon != nullptr) {
       const QRect iconGeo = g_tray_icon->geometry();
       if (iconGeo.isValid()) {
@@ -122,40 +157,116 @@ namespace {
       }
     }
 
+    if (!preferred_pos.isNull() && !is_wayland_session()) {
+      return preferred_pos;
+    }
+
     // When running under a Wayland compositor, XWayland cursor coordinates are stale
     // for events originating from Wayland-native surfaces (e.g., the GNOME top bar).
     // Detect a Wayland session regardless of the Qt platform plugin in use.
-    const bool wayland_session = !qgetenv("WAYLAND_DISPLAY").isEmpty();
+    const bool wayland_session = is_wayland_session();
     if (!wayland_session) {
       // Pure Xorg: QCursor::pos() is accurate.
       return QCursor::pos();
     }
 
-    // Wayland session fallback: infer the panel edge from available vs full screen
-    // geometry and anchor the menu to that edge. popup() keeps the menu on-screen.
-    QScreen *screen = QGuiApplication::primaryScreen();
-    if (screen != nullptr) {
-      const QRect full = screen->geometry();
-      const QRect avail = screen->availableGeometry();
-      if (avail.top() > full.top()) {
-        // Panel at top (e.g., GNOME default): anchor below the panel at the right edge.
-        return QPoint(avail.right(), avail.top());
-      }
-      if (avail.bottom() < full.bottom()) {
-        // Panel at the bottom (e.g., KDE Plasma default): popup() flips upward automatically.
-        return QPoint(avail.right(), avail.bottom());
-      }
-      if (avail.left() > full.left()) {
-        // Panel on the left.
-        return QPoint(avail.left(), avail.bottom());
-      }
-      if (avail.right() < full.right()) {
-        // Panel on the right.
-        return QPoint(avail.right(), avail.bottom());
+    const QPoint cursor_pos = QCursor::pos();
+    if (!cursor_pos.isNull()) {
+      QScreen *cursor_screen = QGuiApplication::screenAt(cursor_pos);
+      if (cursor_screen != nullptr) {
+        return cursor_pos;
       }
     }
 
-    return QCursor::pos();
+    // Wayland session fallback: infer panel anchor from the relevant screen.
+    QScreen *screen = QGuiApplication::screenAt(cursor_pos);
+    if (screen == nullptr) {
+      screen = QGuiApplication::primaryScreen();
+    }
+    const QPoint anchored = screen_anchor_point(screen);
+    if (!anchored.isNull()) {
+      return anchored;
+    }
+
+    return cursor_pos;
+  }
+
+  QIcon icon_from_source(const QString &icon_source) {
+    if (icon_source.isEmpty()) {
+      return QIcon();
+    }
+
+    const QFileInfo icon_fi(icon_source);
+    if (icon_fi.exists()) {
+      const QString file_path = icon_fi.absoluteFilePath();
+      const QIcon file_icon(file_path);
+      if (!file_icon.isNull()) {
+        return file_icon;
+      }
+
+      const QPixmap pixmap(file_path);
+      if (!pixmap.isNull()) {
+        QIcon icon;
+        icon.addPixmap(pixmap);
+        return icon;
+      }
+    }
+
+    const QIcon themed = QIcon::fromTheme(icon_source);
+    if (!themed.isNull()) {
+      return themed;
+    }
+
+    return QIcon();
+  }
+
+  QIcon resolve_tray_icon(const struct tray *tray_data) {
+    if (tray_data == nullptr) {
+      return QIcon();
+    }
+
+    if (tray_data->icon != nullptr) {
+      const QIcon icon = icon_from_source(QString::fromUtf8(tray_data->icon));
+      if (!icon.isNull()) {
+        return icon;
+      }
+    }
+
+    if (tray_data->iconPathCount > 0 && tray_data->iconPathCount < 64) {
+      for (int i = 0; i < tray_data->iconPathCount; i++) {
+        if (tray_data->allIconPaths[i] == nullptr) {
+          continue;
+        }
+        const QIcon icon = icon_from_source(QString::fromUtf8(tray_data->allIconPaths[i]));
+        if (!icon.isNull()) {
+          return icon;
+        }
+      }
+    }
+
+    return QIcon();
+  }
+
+  void popup_menu_for_activation(const QPoint &preferred_pos, int retries_left = 3) {
+    if (g_tray_icon == nullptr) {
+      return;
+    }
+
+    QMenu *menu = g_tray_icon->contextMenu();
+    if (menu == nullptr || menu->isVisible()) {
+      return;
+    }
+
+    menu->activateWindow();
+    menu->setWindowFlag(Qt::Popup, true);
+    menu->popup(calculateMenuPosition(preferred_pos));
+    menu->setFocus(Qt::PopupFocusReason);
+
+    if (!menu->isVisible() && retries_left > 0) {
+      QTimer::singleShot(30, g_tray_icon, [preferred_pos, retries_left]() {
+        popup_menu_for_activation(preferred_pos, retries_left - 1);
+      });
+    }
   }
 
   void close_notification() {
@@ -260,28 +371,43 @@ extern "C" {
       return -1;
     }
 
+    if (QCoreApplication::applicationName().isEmpty()) {
+      QCoreApplication::setApplicationName(QStringLiteral("tray"));
+    }
+    if (QCoreApplication::applicationDisplayName().isEmpty()) {
+      const QString display_name =
+        (tray != nullptr && tray->tooltip != nullptr) ? QString::fromUtf8(tray->tooltip) : QStringLiteral("tray");
+      QCoreApplication::setApplicationDisplayName(display_name);
+    }
+    if (QGuiApplication::desktopFileName().isEmpty()) {
+      QString desktop_name = QCoreApplication::applicationName();
+      if (!desktop_name.endsWith(QStringLiteral(".desktop"))) {
+        desktop_name += QStringLiteral(".desktop");
+      }
+      QGuiApplication::setDesktopFileName(desktop_name);
+    }
+
     // Show the context menu on left-click (Trigger).
     // Qt handles right-click natively via setContextMenu on both X11/XEmbed and
     // SNI (Wayland/AppIndicators), so we do not handle Context here.
-    // The menu position is captured immediately before deferring to the next
-    // event-loop iteration via QTimer::singleShot(0). Deferring allows any
+    // The menu position is captured immediately before deferring by a short timer.
+    // Deferring allows any
     // platform pointer grab from the tray click to be released before the menu
     // establishes its own grab.
     // activateWindow() gives the menu window X11 focus so that the subsequent
     // XGrabPointer inside popup() succeeds, enabling click-outside dismissal on Xorg.
     QObject::connect(g_tray_icon, &QSystemTrayIcon::activated, [](QSystemTrayIcon::ActivationReason reason) {
-      if (reason == QSystemTrayIcon::Trigger) {
-        const QPoint pos = calculateMenuPosition();
-        QTimer::singleShot(0, g_tray_icon, [pos]() {
-          if (g_tray_icon != nullptr) {
-            QMenu *menu = g_tray_icon->contextMenu();
-            if (menu != nullptr && !menu->isVisible()) {
-              menu->activateWindow();
-              menu->popup(pos);
-            }
-          }
-        });
+      const bool left_click_activation =
+        (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::Context);
+
+      if (!left_click_activation) {
+        return;
       }
+
+      const QPoint click_pos = QCursor::pos();
+      QTimer::singleShot(30, g_tray_icon, [click_pos]() {
+        popup_menu_for_activation(click_pos);
+      });
     });
 
     // Defer D-Bus ActionInvoked handler setup to the first event-loop iteration.
@@ -336,26 +462,18 @@ extern "C" {
       return;
     }
 
-    const QString icon_str = QString::fromUtf8(tray->icon);
-    QIcon icon;
-    const QFileInfo icon_fi(icon_str);
-    if (icon_fi.exists()) {
-      // Explicitly load via QPixmap so that the icon engine has pixmap data and
-      // availableSizes() is populated immediately. QIcon(filename) lazy-loads the
-      // pixmap, which leaves availableSizes() empty; Qt6's SNI tray backend then
-      // sees no sizes and sends no icon data, causing the tray icon to be blank.
-      const QPixmap pixmap(icon_fi.absoluteFilePath());
-      if (!pixmap.isNull()) {
-        icon.addPixmap(pixmap);
-      }
-    } else {
-      icon = QIcon::fromTheme(icon_str);
+    QIcon tray_icon = resolve_tray_icon(tray);
+    if (tray_icon.isNull() && !g_tray_icon->icon().isNull()) {
+      tray_icon = g_tray_icon->icon();
+    }
+    if (tray_icon.isNull()) {
+      tray_icon = QApplication::style()->standardIcon(QStyle::SP_ComputerIcon);
     }
     // Only update the icon when the resolved icon is valid. Setting a null icon
     // clears the tray icon and triggers "No Icon set" warnings (Qt6 is stricter
     // about QIcon::fromTheme when the name is not found in the active theme).
-    if (!icon.isNull()) {
-      g_tray_icon->setIcon(icon);
+    if (!tray_icon.isNull()) {
+      g_tray_icon->setIcon(tray_icon);
     }
 
     if (tray->tooltip != nullptr) {
@@ -447,7 +565,7 @@ extern "C" {
     if (g_tray_icon != nullptr) {
       QMenu *menu = g_tray_icon->contextMenu();
       if (menu != nullptr) {
-        menu->popup(calculateMenuPosition());
+        popup_menu_for_activation(QPoint());
         QApplication::processEvents();
       }
     }
