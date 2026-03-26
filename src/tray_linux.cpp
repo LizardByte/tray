@@ -98,21 +98,62 @@ namespace {
   /**
    * @brief Calculate the best position to show the context menu.
    *
-   * Uses the tray icon geometry when available (reliable on X11/XEmbed and
-   * some SNI desktops). Falls back to the current cursor position on systems
-   * where the icon geometry cannot be determined. Qt's QMenu::popup() will
-   * adjust the final position to keep the menu fully on-screen.
+   * Priority:
+   * 1. Tray icon geometry (reliable on X11/XEmbed, sometimes on SNI).
+   * 2. On a pure Xorg session, QCursor::pos() is accurate.
+   * 3. On a Wayland session (detected via WAYLAND_DISPLAY), QCursor::pos() goes
+   *    through XWayland and reflects the last X11 cursor position, which is NOT
+   *    updated when the pointer interacts with Wayland-native surfaces such as the
+   *    GNOME Shell top bar. A screen-geometry heuristic is used instead: the panel
+   *    edge is inferred from the difference between the screen's full and available
+   *    geometries.
+   *
+   * Qt's QMenu::popup() will adjust the final position to keep the menu fully
+   * on-screen, including flipping it above the anchor point when needed.
    *
    * @return The point at which to show the context menu.
    */
   QPoint calculateMenuPosition() {
     if (g_tray_icon != nullptr) {
-      const QRect iconGeometry = g_tray_icon->geometry();
-      if (iconGeometry.isValid()) {
-        // Qt's popup() will flip the menu above the icon if it would go off-screen.
-        return iconGeometry.bottomLeft();
+      const QRect iconGeo = g_tray_icon->geometry();
+      if (iconGeo.isValid()) {
+        return iconGeo.bottomLeft();
       }
     }
+
+    // When running under a Wayland compositor, XWayland cursor coordinates are stale
+    // for events originating from Wayland-native surfaces (e.g., the GNOME top bar).
+    // Detect a Wayland session regardless of the Qt platform plugin in use.
+    const bool wayland_session = !qgetenv("WAYLAND_DISPLAY").isEmpty();
+    if (!wayland_session) {
+      // Pure Xorg: QCursor::pos() is accurate.
+      return QCursor::pos();
+    }
+
+    // Wayland session fallback: infer the panel edge from available vs full screen
+    // geometry and anchor the menu to that edge. popup() keeps the menu on-screen.
+    QScreen *screen = QGuiApplication::primaryScreen();
+    if (screen != nullptr) {
+      const QRect full = screen->geometry();
+      const QRect avail = screen->availableGeometry();
+      if (avail.top() > full.top()) {
+        // Panel at top (e.g., GNOME default): anchor below the panel at the right edge.
+        return QPoint(avail.right(), avail.top());
+      }
+      if (avail.bottom() < full.bottom()) {
+        // Panel at the bottom (e.g., KDE Plasma default): popup() flips upward automatically.
+        return QPoint(avail.right(), avail.bottom());
+      }
+      if (avail.left() > full.left()) {
+        // Panel on the left.
+        return QPoint(avail.left(), avail.bottom());
+      }
+      if (avail.right() < full.right()) {
+        // Panel on the right.
+        return QPoint(avail.right(), avail.bottom());
+      }
+    }
+
     return QCursor::pos();
   }
 
@@ -218,19 +259,28 @@ extern "C" {
       return -1;
     }
 
-    // Show the context menu on the default trigger (clicked).
-    // QSystemTrayIcon::setContextMenu only handles right-click on X11/XEmbed;
-    // SNI-based desktops may not show the menu at all without this explicit connection.
-    // The menu is positioned using the tray icon geometry rather than the cursor position,
-    // which is unreliable on Wayland.
+    // Show the context menu on left-click (Trigger).
+    // Qt handles right-click natively via setContextMenu on both X11/XEmbed and
+    // SNI (Wayland/AppIndicators), so we do not handle Context here.
+    // The menu position is captured immediately before deferring to the next
+    // event-loop iteration via QTimer::singleShot(0). Deferring allows any
+    // platform pointer grab from the tray click to be released before the menu
+    // establishes its own grab.
+    // QApplication::setActiveWindow gives the menu window X11 focus so that the
+    // subsequent XGrabPointer inside popup() succeeds, enabling click-outside
+    // dismissal on Xorg.
     QObject::connect(g_tray_icon, &QSystemTrayIcon::activated, [](QSystemTrayIcon::ActivationReason reason) {
       if (reason == QSystemTrayIcon::Trigger) {
-        if (g_tray_icon != nullptr) {
-          QMenu *menu = g_tray_icon->contextMenu();
-          if (menu != nullptr) {
-            menu->popup(calculateMenuPosition());
+        const QPoint pos = calculateMenuPosition();
+        QTimer::singleShot(0, g_tray_icon, [pos]() {
+          if (g_tray_icon != nullptr) {
+            QMenu *menu = g_tray_icon->contextMenu();
+            if (menu != nullptr && !menu->isVisible()) {
+              QApplication::setActiveWindow(menu);
+              menu->popup(pos);
+            }
           }
-        }
+        });
       }
     });
 
@@ -287,9 +337,13 @@ extern "C" {
     }
 
     const QString icon_str = QString::fromUtf8(tray->icon);
-    g_tray_icon->setIcon(
-      QFileInfo(icon_str).exists() ? QIcon(icon_str) : QIcon::fromTheme(icon_str)
-    );
+    const QIcon icon = QFileInfo(icon_str).exists() ? QIcon(icon_str) : QIcon::fromTheme(icon_str);
+    // Only update the icon when the resolved icon is valid. Setting a null icon
+    // clears the tray icon and triggers "No Icon set" warnings (Qt6 is stricter
+    // about QIcon::fromTheme when the name is not found in the active theme).
+    if (!icon.isNull()) {
+      g_tray_icon->setIcon(icon);
+    }
 
     if (tray->tooltip != nullptr) {
       g_tray_icon->setToolTip(QString::fromUtf8(tray->tooltip));
