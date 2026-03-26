@@ -19,6 +19,7 @@
 #include <QGuiApplication>
 #include <QIcon>
 #include <QMenu>
+#include <QPixmap>
 #include <QScreen>
 #include <QSystemTrayIcon>
 #include <QTimer>
@@ -266,9 +267,8 @@ extern "C" {
     // event-loop iteration via QTimer::singleShot(0). Deferring allows any
     // platform pointer grab from the tray click to be released before the menu
     // establishes its own grab.
-    // QApplication::setActiveWindow gives the menu window X11 focus so that the
-    // subsequent XGrabPointer inside popup() succeeds, enabling click-outside
-    // dismissal on Xorg.
+    // activateWindow() gives the menu window X11 focus so that the subsequent
+    // XGrabPointer inside popup() succeeds, enabling click-outside dismissal on Xorg.
     QObject::connect(g_tray_icon, &QSystemTrayIcon::activated, [](QSystemTrayIcon::ActivationReason reason) {
       if (reason == QSystemTrayIcon::Trigger) {
         const QPoint pos = calculateMenuPosition();
@@ -276,7 +276,7 @@ extern "C" {
           if (g_tray_icon != nullptr) {
             QMenu *menu = g_tray_icon->contextMenu();
             if (menu != nullptr && !menu->isVisible()) {
-              QApplication::setActiveWindow(menu);
+              menu->activateWindow();
               menu->popup(pos);
             }
           }
@@ -337,7 +337,20 @@ extern "C" {
     }
 
     const QString icon_str = QString::fromUtf8(tray->icon);
-    const QIcon icon = QFileInfo(icon_str).exists() ? QIcon(icon_str) : QIcon::fromTheme(icon_str);
+    QIcon icon;
+    const QFileInfo icon_fi(icon_str);
+    if (icon_fi.exists()) {
+      // Explicitly load via QPixmap so that the icon engine has pixmap data and
+      // availableSizes() is populated immediately. QIcon(filename) lazy-loads the
+      // pixmap, which leaves availableSizes() empty; Qt6's SNI tray backend then
+      // sees no sizes and sends no icon data, causing the tray icon to be blank.
+      const QPixmap pixmap(icon_fi.absoluteFilePath());
+      if (!pixmap.isNull()) {
+        icon.addPixmap(pixmap);
+      }
+    } else {
+      icon = QIcon::fromTheme(icon_str);
+    }
     // Only update the icon when the resolved icon is valid. Setting a null icon
     // clears the tray icon and triggers "No Icon set" warnings (Qt6 is stricter
     // about QIcon::fromTheme when the name is not found in the active theme).
