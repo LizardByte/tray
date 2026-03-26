@@ -336,6 +336,11 @@ void tray_simulate_notification_click(void) {
   // Simulating this from outside the message pump is not supported here.
 }
 
+void tray_set_log_callback(void (*cb)(int level, const char *msg)) {
+  // Qt is not used on Windows; log routing is not applicable.
+  (void) cb;
+}
+
 void tray_exit(void) {
   Shell_NotifyIconW(NIM_DELETE, &nid);
   SendMessage(hwnd, WM_CLOSE, 0, 0);

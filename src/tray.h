@@ -86,6 +86,18 @@ extern "C" {
    */
   void tray_exit(void);
 
+  /**
+   * @brief Set a callback for log messages produced by the tray library.
+   *
+   * On Linux the callback is installed as a Qt message handler so all Qt
+   * diagnostic output is routed through it. On other platforms this function
+   * is a no-op.
+   *
+   * @param cb Callback invoked with level (0=debug, 1=info, 2=warning, 3=error)
+   *   and the message string. Pass NULL to restore the default logging behaviour.
+   */
+  void tray_set_log_callback(void (*cb)(int level, const char *msg));
+
 #if defined(TRAY_WINAPI)
   /**
    * @brief Get the tray window handle.

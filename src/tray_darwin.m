@@ -135,6 +135,11 @@ void tray_simulate_notification_click(void) {
   // Simulation is not supported here.
 }
 
+void tray_set_log_callback(void (*cb)(int level, const char *msg)) {
+  // Qt is not used on macOS; log routing is not applicable.
+  (void) cb;
+}
+
 void tray_exit(void) {
   // Remove the status item from the status bar on the main thread
   // NSStatusBar operations must be performed on the main thread

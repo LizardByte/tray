@@ -16,9 +16,12 @@
 #include <QDBusInterface>
 #include <QDBusReply>
 #include <QFileInfo>
+#include <QGuiApplication>
 #include <QIcon>
 #include <QMenu>
+#include <QScreen>
 #include <QSystemTrayIcon>
+#include <QTimer>
 #include <QUrl>
 #include <QVariantMap>
 
@@ -63,6 +66,55 @@ namespace {
   bool g_app_owned = false;  // NOSONAR(cpp:S5421) - mutable state, not const
   bool g_exit_pending = false;  // NOSONAR(cpp:S5421) - mutable state, not const
   uint g_notification_id = 0;  // NOSONAR(cpp:S5421) - tracks last D-Bus notification ID for proper cleanup
+  void (*g_log_cb)(int, const char *) = nullptr;  // NOSONAR(cpp:S5421) - mutable state, not const
+
+  /**
+   * @brief Qt message handler that forwards to the registered log callback.
+   * @param type The Qt message type.
+   * @param msg The message string.
+   */
+  void qt_message_handler(QtMsgType type, const QMessageLogContext &, const QString &msg) {
+    if (g_log_cb == nullptr) {
+      return;
+    }
+    int level;
+    switch (type) {
+      case QtDebugMsg:
+        level = 0;
+        break;
+      case QtInfoMsg:
+        level = 1;
+        break;
+      case QtWarningMsg:
+        level = 2;
+        break;
+      default:
+        level = 3;
+        break;
+    }
+    g_log_cb(level, msg.toUtf8().constData());
+  }
+
+  /**
+   * @brief Calculate the best position to show the context menu.
+   *
+   * Uses the tray icon geometry when available (reliable on X11/XEmbed and
+   * some SNI desktops). Falls back to the current cursor position on systems
+   * where the icon geometry cannot be determined. Qt's QMenu::popup() will
+   * adjust the final position to keep the menu fully on-screen.
+   *
+   * @return The point at which to show the context menu.
+   */
+  QPoint calculateMenuPosition() {
+    if (g_tray_icon != nullptr) {
+      const QRect iconGeometry = g_tray_icon->geometry();
+      if (iconGeometry.isValid()) {
+        // Qt's popup() will flip the menu above the icon if it would go off-screen.
+        return iconGeometry.bottomLeft();
+      }
+    }
+    return QCursor::pos();
+  }
 
   void close_notification() {
     if (g_notification_id == 0) {
@@ -166,33 +218,41 @@ extern "C" {
       return -1;
     }
 
-    // Show the context menu on left-click (Trigger) in addition to the default right-click path.
-    // QSystemTrayIcon::setContextMenu only handles right-click on X11/XEmbed; SNI-based desktops
-    // may not show the menu at all without this explicit connection.
+    // Show the context menu on the default trigger (clicked).
+    // QSystemTrayIcon::setContextMenu only handles right-click on X11/XEmbed;
+    // SNI-based desktops may not show the menu at all without this explicit connection.
+    // The menu is positioned using the tray icon geometry rather than the cursor position,
+    // which is unreliable on Wayland.
     QObject::connect(g_tray_icon, &QSystemTrayIcon::activated, [](QSystemTrayIcon::ActivationReason reason) {
-      if (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::MiddleClick) {
+      if (reason == QSystemTrayIcon::Trigger) {
         if (g_tray_icon != nullptr) {
           QMenu *menu = g_tray_icon->contextMenu();
           if (menu != nullptr) {
-            menu->popup(QCursor::pos());
+            menu->popup(calculateMenuPosition());
           }
         }
       }
     });
 
-    // Create the D-Bus ActionInvoked handler once per QApplication lifetime.
-    // This receives the "default" action event when the user clicks a D-Bus notification,
-    // which QSystemTrayIcon::messageClicked does NOT emit for D-Bus-dispatched notifications.
+    // Defer D-Bus ActionInvoked handler setup to the first event-loop iteration.
+    // Creating QDBusConnection socket notifiers before the event loop starts can
+    // trigger a "QSocketNotifier: Can only be used with threads started with QThread"
+    // warning when the tray runs in a std::thread. Deferring via QTimer::singleShot
+    // ensures the socket notifiers are created while the event dispatcher is active.
     if (g_notification_handler == nullptr) {
       g_notification_handler = new TrayNotificationHandler();  // NOSONAR(cpp:S5025) - deleted in destroy_app()
-      QDBusConnection::sessionBus().connect(
-        QStringLiteral("org.freedesktop.Notifications"),
-        QStringLiteral("/org/freedesktop/Notifications"),
-        QStringLiteral("org.freedesktop.Notifications"),
-        QStringLiteral("ActionInvoked"),
-        g_notification_handler,
-        SLOT(onActionInvoked(uint, QString))
-      );
+      QTimer::singleShot(0, g_notification_handler, []() {
+        if (g_notification_handler != nullptr) {
+          QDBusConnection::sessionBus().connect(
+            QStringLiteral("org.freedesktop.Notifications"),
+            QStringLiteral("/org/freedesktop/Notifications"),
+            QStringLiteral("org.freedesktop.Notifications"),
+            QStringLiteral("ActionInvoked"),
+            g_notification_handler,
+            SLOT(onActionInvoked(uint, QString))
+          );
+        }
+      });
     }
 
     tray_update(tray);
@@ -320,7 +380,7 @@ extern "C" {
     if (g_tray_icon != nullptr) {
       QMenu *menu = g_tray_icon->contextMenu();
       if (menu != nullptr) {
-        menu->popup(QCursor::pos());
+        menu->popup(calculateMenuPosition());
         QApplication::processEvents();
       }
     }
@@ -346,6 +406,15 @@ extern "C" {
     g_exit_pending = true;
     if (g_app_owned && QApplication::instance() != nullptr) {
       QApplication::quit();
+    }
+  }
+
+  void tray_set_log_callback(void (*cb)(int level, const char *msg)) {
+    g_log_cb = cb;
+    if (cb != nullptr) {
+      qInstallMessageHandler(qt_message_handler);
+    } else {
+      qInstallMessageHandler(nullptr);
     }
   }
 
