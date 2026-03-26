@@ -5,7 +5,7 @@
 #ifndef TRAY_H
 #define TRAY_H
 
-#if defined(TRAY_WINAPI)
+#if defined(_WIN32)
   #include <Windows.h>
 #endif
 
@@ -98,7 +98,7 @@ extern "C" {
    */
   void tray_set_log_callback(void (*cb)(int level, const char *msg));
 
-#if defined(TRAY_WINAPI)
+#if defined(_WIN32)
   /**
    * @brief Get the tray window handle.
    * @return The window handle.

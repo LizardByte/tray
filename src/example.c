@@ -6,26 +6,15 @@
 #include <stdio.h>
 #include <string.h>
 
-#if defined(_WIN32) || defined(_WIN64)
-  #define TRAY_WINAPI 1  ///< Use WinAPI.
-#elif defined(__linux__) || defined(linux) || defined(__linux)
-  #define TRAY_QT 1
-#elif defined(__APPLE__) || defined(__MACH__)
-  #define TRAY_APPKIT 1
-#endif
-
 // local includes
 #include "tray.h"
 
-#if TRAY_QT
-  #define TRAY_ICON1 "icon.png"
-  #define TRAY_ICON2 "icon.png"
-#elif TRAY_APPKIT
-  #define TRAY_ICON1 "icon.png"
-  #define TRAY_ICON2 "icon.png"
-#elif TRAY_WINAPI
+#if defined(_WIN32)
   #define TRAY_ICON1 "icon.ico"  ///< Path to first icon.
   #define TRAY_ICON2 "icon.ico"  ///< Path to second icon.
+#else
+  #define TRAY_ICON1 "icon.png"
+  #define TRAY_ICON2 "icon.png"
 #endif
 
 static struct tray tray;
@@ -62,9 +51,7 @@ static void submenu_cb(struct tray_menu *item) {
 // Test tray init
 static struct tray tray = {
   .icon = TRAY_ICON1,
-#if TRAY_WINAPI
   .tooltip = "Tray",
-#endif
   .menu =
     (struct tray_menu[]) {
       {.text = "Hello", .cb = hello_cb},

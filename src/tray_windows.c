@@ -3,6 +3,12 @@
  * @brief System tray implementation for Windows.
  */
 // standard includes
+#ifndef WIN32_LEAN_AND_MEAN
+  #define WIN32_LEAN_AND_MEAN  ///< Excludes rarely used APIs from Windows headers.
+#endif
+#ifndef NOMINMAX
+  #define NOMINMAX  ///< Prevents Windows.h from defining min and max macros.
+#endif
 #include <Windows.h>
 // clang-format off
 // build fails if shellapi.h is included before Windows.h
