@@ -374,10 +374,10 @@ extern "C" {
     if (QCoreApplication::applicationName().isEmpty()) {
       QCoreApplication::setApplicationName(QStringLiteral("tray"));
     }
-    if (QCoreApplication::applicationDisplayName().isEmpty()) {
+    if (QGuiApplication::applicationDisplayName().isEmpty()) {
       const QString display_name =
         (tray != nullptr && tray->tooltip != nullptr) ? QString::fromUtf8(tray->tooltip) : QStringLiteral("tray");
-      QCoreApplication::setApplicationDisplayName(display_name);
+      QGuiApplication::setApplicationDisplayName(display_name);
     }
     if (QGuiApplication::desktopFileName().isEmpty()) {
       QString desktop_name = QCoreApplication::applicationName();
