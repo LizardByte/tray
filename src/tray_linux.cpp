@@ -22,6 +22,7 @@
 #include <QDBusPendingCall>
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
+#include <QDir>
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QIcon>
@@ -114,6 +115,75 @@ namespace {
       return true;
     }
     return !qgetenv("WAYLAND_DISPLAY").isEmpty();
+  }
+
+  bool has_wayland_display_endpoint() {
+    const QByteArray wayland_display = qgetenv("WAYLAND_DISPLAY");
+    if (wayland_display.isEmpty()) {
+      return false;
+    }
+
+    const QString display_name = QString::fromLocal8Bit(wayland_display).trimmed();
+    if (display_name.isEmpty()) {
+      return false;
+    }
+
+    if (const QFileInfo direct_path(display_name); direct_path.exists()) {
+      return true;
+    }
+
+    const QByteArray runtime_dir = qgetenv("XDG_RUNTIME_DIR");
+    if (runtime_dir.isEmpty()) {
+      return false;
+    }
+
+    const QString socket_path = QDir(QString::fromLocal8Bit(runtime_dir)).filePath(display_name);
+    return QFileInfo::exists(socket_path);
+  }
+
+  bool has_x11_display_endpoint() {
+    const QByteArray display_env = qgetenv("DISPLAY");
+    if (display_env.isEmpty()) {
+      return false;
+    }
+
+    const QString display = QString::fromLocal8Bit(display_env).trimmed();
+    if (display.isEmpty()) {
+      return false;
+    }
+
+    if (display.startsWith('/')) {
+      return QFileInfo::exists(display);
+    }
+
+    if (!display.startsWith(':')) {
+      // Remote/TCP displays are not locally discoverable; treat as potentially usable.
+      return true;
+    }
+
+    int digit_end = 1;
+    while (digit_end < display.size() && display.at(digit_end).isDigit()) {
+      digit_end++;
+    }
+    if (digit_end == 1) {
+      return true;
+    }
+
+    bool ok = false;
+    const int display_number = display.mid(1, digit_end - 1).toInt(&ok);
+    if (!ok) {
+      return true;
+    }
+
+    const QString socket_path = QStringLiteral("/tmp/.X11-unix/X%1").arg(display_number);
+    return QFileInfo::exists(socket_path);
+  }
+
+  bool should_force_headless_qpa_fallback() {
+    if (!qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM")) {
+      return false;
+    }
+    return !has_wayland_display_endpoint() && !has_x11_display_endpoint();
   }
 
   QPoint screen_anchor_point(const QScreen *screen) {
@@ -729,6 +799,12 @@ extern "C" {
 
   int tray_init(struct tray *tray) {
     if (QApplication::instance() == nullptr) {
+      if (should_force_headless_qpa_fallback()) {
+        qputenv("QT_QPA_PLATFORM", QByteArrayLiteral("minimal"));
+        if (g_log_cb != nullptr) {
+          g_log_cb(2, "Qt tray: no reachable WAYLAND_DISPLAY or DISPLAY endpoint, forcing QT_QPA_PLATFORM=minimal");
+        }
+      }
       static int argc = 0;
       g_app = std::make_unique<QApplication>(argc, nullptr);
       g_app_owned = true;
