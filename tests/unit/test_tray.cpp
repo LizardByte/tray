@@ -163,7 +163,7 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F generates subclasses that need access
 
     // Ensure icon files exist in test binary directory
     std::filesystem::path projectRoot = testBinaryDir.parent_path();
-    auto ensureIconInTestDir = [projectRoot, this](const char *iconName) {
+    auto ensureIconInTestDir = [&projectRoot, this](const char *iconName) {
       std::filesystem::path iconSource;
 
       if (std::filesystem::exists(projectRoot / "icons" / iconName)) {

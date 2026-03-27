@@ -32,6 +32,7 @@
 #include <QThread>
 #include <QTimer>
 #include <QUrl>
+#include <QVariant>
 #include <QVariantMap>
 
 /**
@@ -60,7 +61,7 @@ public slots:
    * @param id The notification ID.
    * @param action_key The action key that was triggered.
    */
-  void onActionInvoked(uint id, const QString &action_key) {
+  void onActionInvoked(uint id, const QString &action_key) const {
     if (id == notification_id && cb != nullptr && action_key == QLatin1String("default")) {
       cb();
     }
@@ -105,8 +106,8 @@ namespace {
   }
 
   bool is_wayland_session() {
-    const QString platform = QGuiApplication::platformName().toLower();
-    if (platform.contains(QStringLiteral("wayland"))) {
+    if (const QString platform = QGuiApplication::platformName().toLower();
+        platform.contains(QStringLiteral("wayland"))) {
       return true;
     }
     return !qgetenv("WAYLAND_DISPLAY").isEmpty();
@@ -197,27 +198,25 @@ namespace {
     // When running under a Wayland compositor, XWayland cursor coordinates are stale
     // for events originating from Wayland-native surfaces (e.g., the GNOME top bar).
     // Detect a Wayland session regardless of the Qt platform plugin in use.
-    const bool wayland_session = is_wayland_session();
-    if (!wayland_session) {
+    if (const bool wayland_session = is_wayland_session(); !wayland_session) {
       // Pure Xorg: QCursor::pos() is accurate.
       return QCursor::pos();
     }
 
     const QPoint cursor_pos = QCursor::pos();
     if (!cursor_pos.isNull()) {
-      QScreen *cursor_screen = QGuiApplication::screenAt(cursor_pos);
+      const QScreen *cursor_screen = QGuiApplication::screenAt(cursor_pos);
       if (cursor_screen != nullptr) {
         return cursor_pos;
       }
     }
 
     // Wayland session fallback: infer panel anchor from the relevant screen.
-    QScreen *screen = QGuiApplication::screenAt(cursor_pos);
+    const QScreen *screen = QGuiApplication::screenAt(cursor_pos);
     if (screen == nullptr) {
       screen = QGuiApplication::primaryScreen();
     }
-    const QPoint anchored = screen_anchor_point(screen);
-    if (!anchored.isNull()) {
+    if (const QPoint anchored = screen_anchor_point(screen); !anchored.isNull()) {
       return anchored;
     }
 
@@ -229,11 +228,9 @@ namespace {
       return QIcon();
     }
 
-    const QFileInfo icon_fi(icon_source);
-    if (icon_fi.exists()) {
+    if (const QFileInfo icon_fi(icon_source); icon_fi.exists()) {
       const QString file_path = icon_fi.absoluteFilePath();
-      const QIcon file_icon(file_path);
-      if (!file_icon.isNull()) {
+      if (const QIcon file_icon(file_path); !file_icon.isNull()) {
         return file_icon;
       }
 
@@ -245,8 +242,7 @@ namespace {
       }
     }
 
-    const QIcon themed = QIcon::fromTheme(icon_source);
-    if (!themed.isNull()) {
+    if (const QIcon themed = QIcon::fromTheme(icon_source); !themed.isNull()) {
       return themed;
     }
 
@@ -335,9 +331,9 @@ namespace {
           action->setCheckable(true);
           action->setChecked(m->checked != 0);
         }
-        action->setData(QVariant::fromValue<quintptr>(reinterpret_cast<quintptr>(m)));
+        action->setData(QVariant::fromValue(static_cast<void *>(m)));
         QObject::connect(action, &QAction::triggered, menu, [action]() {
-          auto *item = reinterpret_cast<struct tray_menu *>(action->data().value<quintptr>());
+          auto *item = static_cast<struct tray_menu *>(action->data().value<void *>());
           if (item != nullptr && item->cb != nullptr) {
             item->cb(item);
           }
@@ -359,7 +355,9 @@ namespace {
         return false;
       }
 
-      QAction *action = actions.at(action_index++);
+      const int current_action_index = action_index;
+      action_index++;
+      const QAction *action = actions.at(current_action_index);
       if (std::strcmp(item->text, "-") == 0) {
         if (!action->isSeparator()) {
           return false;
@@ -368,7 +366,7 @@ namespace {
       }
 
       if (item->submenu != nullptr) {
-        QMenu *submenu = action->menu();
+        const QMenu *submenu = action->menu();
         if (submenu == nullptr || !menu_layout_matches(submenu, item->submenu)) {
           return false;
         }
@@ -380,7 +378,7 @@ namespace {
     return action_index == actions.size();
   }
 
-  void update_menu_state(QMenu *menu, struct tray_menu *items) {
+  void update_menu_state(const QMenu *menu, struct tray_menu *items) {
     if (menu == nullptr || items == nullptr) {
       return;
     }
@@ -388,7 +386,9 @@ namespace {
     const QList<QAction *> actions = menu->actions();
     int action_index = 0;
     for (struct tray_menu *item = items; item != nullptr && item->text != nullptr; item++) {
-      QAction *action = actions.at(action_index++);
+      const int current_action_index = action_index;
+      action_index++;
+      QAction *action = actions.at(current_action_index);
       if (std::strcmp(item->text, "-") == 0) {
         continue;
       }
@@ -404,8 +404,258 @@ namespace {
       if (item->checkbox != 0) {
         action->setChecked(item->checked != 0);
       }
-      action->setData(QVariant::fromValue<quintptr>(reinterpret_cast<quintptr>(item)));
+      action->setData(QVariant::fromValue(static_cast<void *>(item)));
     }
+  }
+
+  void configure_app_metadata(const struct tray *tray) {
+    const QString effective_name = !g_app_name.isEmpty() ? g_app_name : QStringLiteral("tray");
+    if (QCoreApplication::applicationName().isEmpty()) {
+      QCoreApplication::setApplicationName(effective_name);
+    }
+
+    if (QGuiApplication::applicationDisplayName().isEmpty()) {
+      if (!g_app_display_name.isEmpty()) {
+        QGuiApplication::setApplicationDisplayName(g_app_display_name);
+      } else {
+        const QString display_name =
+          (tray != nullptr && tray->tooltip != nullptr) ? QString::fromUtf8(tray->tooltip) : effective_name;
+        QGuiApplication::setApplicationDisplayName(display_name);
+      }
+    }
+
+    if (!QGuiApplication::desktopFileName().isEmpty()) {
+      return;
+    }
+
+    if (!g_desktop_name.isEmpty()) {
+      QGuiApplication::setDesktopFileName(g_desktop_name);
+      return;
+    }
+
+    QString desktop_name = QCoreApplication::applicationName();
+    if (!desktop_name.endsWith(QStringLiteral(".desktop"))) {
+      desktop_name += QStringLiteral(".desktop");
+    }
+    QGuiApplication::setDesktopFileName(desktop_name);
+  }
+
+  void connect_activation_handler() {
+    // Show the context menu on left-click (Trigger).
+    // Qt handles right-click natively via setContextMenu on both X11/XEmbed and
+    // SNI (Wayland/AppIndicators), so we do not handle Context here.
+    // The menu position is captured immediately before deferring by a short timer.
+    // Deferring allows any platform pointer grab from the tray click to be released
+    // before the menu establishes its own grab.
+    QObject::connect(g_tray_icon, &QSystemTrayIcon::activated, [](QSystemTrayIcon::ActivationReason reason) {
+      if (const bool left_click_activation =
+            (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::Context);
+          !left_click_activation) {
+        return;
+      }
+
+      const QPoint click_pos = QCursor::pos();
+      QTimer::singleShot(30, g_tray_icon, [click_pos]() {
+        popup_menu_for_activation(click_pos);
+      });
+    });
+  }
+
+  void ensure_notification_handler_connected() {
+    if (g_notification_handler != nullptr) {
+      return;
+    }
+
+    g_notification_handler = new TrayNotificationHandler();  // NOSONAR(cpp:S5025) - deleted in destroy_app()
+    // Defer D-Bus ActionInvoked handler setup to the first event-loop iteration.
+    // Creating QDBusConnection socket notifiers before the event loop starts can
+    // trigger a "QSocketNotifier: Can only be used with threads started with QThread"
+    // warning when the tray runs in a std::thread.
+    QTimer::singleShot(0, g_notification_handler, []() {
+      if (g_notification_handler == nullptr) {
+        return;
+      }
+      QDBusConnection::sessionBus().connect(
+        QStringLiteral("org.freedesktop.Notifications"),
+        QStringLiteral("/org/freedesktop/Notifications"),
+        QStringLiteral("org.freedesktop.Notifications"),
+        QStringLiteral("ActionInvoked"),
+        g_notification_handler,
+        SLOT(onActionInvoked(uint, QString))
+      );
+    });
+  }
+
+  void update_context_menu(const struct tray *tray) {
+    if (tray->menu == nullptr) {
+      return;
+    }
+
+    QMenu *existing_menu = g_tray_icon->contextMenu();
+    if (existing_menu != nullptr && menu_layout_matches(existing_menu, tray->menu)) {
+      update_menu_state(existing_menu, tray->menu);
+      return;
+    }
+
+    // setContextMenu does not take ownership; delete the old menu before replacing it.
+    QMenu *new_menu = build_menu(tray->menu, nullptr);  // NOSONAR(cpp:S5025) - deleted via existing_menu path or on next update
+    g_tray_icon->setContextMenu(new_menu);
+    if (existing_menu == nullptr) {
+      return;
+    }
+
+    // hide() before delete releases any X11 pointer grab held by the popup.
+    // Skipping this leaves the grab active, causing future popup menus to appear
+    // but receive no pointer events, so QAction::triggered is never emitted.
+    existing_menu->hide();
+    delete existing_menu;  // NOSONAR(cpp:S5025) - required; Qt does not own this
+  }
+
+  void reset_notification_state() {
+    if (g_notification_handler != nullptr) {
+      g_notification_handler->notification_id = 0;
+      g_notification_handler->cb = nullptr;
+    }
+    QObject::disconnect(g_tray_icon, &QSystemTrayIcon::messageClicked, nullptr, nullptr);
+    close_notification();
+  }
+
+  QString resolve_notification_icon(const struct tray *tray) {
+    const char *icon_path = tray->notification_icon != nullptr ? tray->notification_icon : tray->icon;
+    if (icon_path == nullptr) {
+      return QString();
+    }
+
+    if (const QFileInfo fi(QString::fromUtf8(icon_path)); fi.exists()) {
+      return QUrl::fromLocalFile(fi.absoluteFilePath()).toString();
+    }
+    return QString::fromUtf8(icon_path);
+  }
+
+  void destroy_tray();
+
+  void handle_notification_reply(QDBusPendingCallWatcher *watcher) {
+    const QDBusPendingReply<uint> reply = *watcher;
+    if (reply.isValid() && g_tray_icon != nullptr) {
+      g_notification_id = reply.value();
+      if (g_notification_handler != nullptr) {
+        g_notification_handler->notification_id = g_notification_id;
+      }
+    }
+    watcher->deleteLater();
+  }
+
+  bool send_dbus_notification(const struct tray *tray, const QString &title, const QString &text, const QString &icon) {
+    QVariantMap hints;
+    if (!icon.isEmpty()) {
+      hints[QStringLiteral("image-path")] = icon;
+    }
+
+    QDBusInterface iface(
+      QStringLiteral("org.freedesktop.Notifications"),
+      QStringLiteral("/org/freedesktop/Notifications"),
+      QStringLiteral("org.freedesktop.Notifications")
+    );
+    if (!iface.isValid()) {
+      return false;
+    }
+
+    QStringList actions;
+    if (tray->notification_cb != nullptr) {
+      actions << QStringLiteral("default") << QString();
+    }
+    if (g_notification_handler != nullptr) {
+      g_notification_handler->cb = tray->notification_cb;
+    }
+
+    QDBusPendingCall pending = iface.asyncCall(
+      QStringLiteral("Notify"),
+      QGuiApplication::applicationDisplayName(),
+      static_cast<uint>(0),
+      icon,
+      title,
+      text,
+      actions,
+      hints,
+      5000
+    );
+    auto *watcher = new QDBusPendingCallWatcher(pending);  // NOSONAR(cpp:S5025) - deleted via deleteLater in finished handler
+    QObject::connect(watcher, &QDBusPendingCallWatcher::finished, watcher, [](QDBusPendingCallWatcher *finished) {
+      handle_notification_reply(finished);
+    });
+    return true;
+  }
+
+  void send_qt_notification_fallback(const struct tray *tray, const QString &title, const QString &text) {
+    if (tray->notification_cb != nullptr && g_notification_handler != nullptr) {
+      g_notification_handler->cb = tray->notification_cb;
+      QObject::connect(g_tray_icon, &QSystemTrayIcon::messageClicked, []() {
+        if (g_notification_handler == nullptr || g_notification_handler->cb == nullptr) {
+          return;
+        }
+        g_notification_handler->cb();
+      });
+    }
+    g_tray_icon->showMessage(title, text, QSystemTrayIcon::Information, 5000);
+  }
+
+  void update_notification(const struct tray *tray) {
+    const QString text = tray->notification_text != nullptr ? QString::fromUtf8(tray->notification_text) : QString();
+    reset_notification_state();
+    if (text.isEmpty()) {
+      return;
+    }
+
+    const QString title = tray->notification_title != nullptr ? QString::fromUtf8(tray->notification_title) : QString();
+    const QString icon = resolve_notification_icon(tray);
+
+    if (!send_dbus_notification(tray, title, text, icon)) {
+      // D-Bus may be unavailable; fall back to Qt's built-in balloon.
+      send_qt_notification_fallback(tray, title, text);
+    }
+  }
+
+  void update_tray_state(const struct tray *tray) {
+    if (g_tray_icon == nullptr) {
+      return;
+    }
+
+    QIcon tray_icon = resolve_tray_icon(tray);
+    if (tray_icon.isNull() && !g_tray_icon->icon().isNull()) {
+      tray_icon = g_tray_icon->icon();
+    }
+    if (tray_icon.isNull()) {
+      tray_icon = QApplication::style()->standardIcon(QStyle::SP_ComputerIcon);
+    }
+    if (!tray_icon.isNull()) {
+      g_tray_icon->setIcon(tray_icon);
+    }
+
+    if (tray->tooltip != nullptr) {
+      g_tray_icon->setToolTip(QString::fromUtf8(tray->tooltip));
+    }
+
+    update_context_menu(tray);
+    update_notification(tray);
+  }
+
+  void initialize_tray(struct tray *tray, int *result) {
+    destroy_tray();
+    g_loop_result = 0;
+    g_exit_pending = false;
+
+    g_tray_icon = new QSystemTrayIcon();  // NOSONAR(cpp:S5025) - raw pointer; deleted in destroy_tray() before QApplication
+    if (!QSystemTrayIcon::isSystemTrayAvailable()) {
+      destroy_tray();
+      *result = -1;
+      return;
+    }
+
+    configure_app_metadata(tray);
+    connect_activation_handler();
+    ensure_notification_handler_connected();
+    update_tray_state(tray);
+    g_tray_icon->show();
   }
 
   void destroy_tray() {
@@ -429,14 +679,6 @@ namespace {
 
   void destroy_app() {
     if (g_notification_handler != nullptr) {
-      QDBusConnection::sessionBus().disconnect(
-        QStringLiteral("org.freedesktop.Notifications"),
-        QStringLiteral("/org/freedesktop/Notifications"),
-        QStringLiteral("org.freedesktop.Notifications"),
-        QStringLiteral("ActionInvoked"),
-        g_notification_handler,
-        SLOT(onActionInvoked(uint, QString))
-      );
       delete g_notification_handler;  // NOSONAR(cpp:S5025) - raw pointer; deleted explicitly before QApplication
       g_notification_handler = nullptr;
     }
@@ -462,89 +704,7 @@ extern "C" {
 
     int result = 0;
     run_on_qt_thread([tray, &result]() {
-      destroy_tray();
-      g_loop_result = 0;
-      g_exit_pending = false;
-
-      g_tray_icon = new QSystemTrayIcon();  // NOSONAR(cpp:S5025) - raw pointer; deleted in destroy_tray() before QApplication
-
-      if (!QSystemTrayIcon::isSystemTrayAvailable()) {
-        destroy_tray();
-        result = -1;
-        return;
-      }
-
-      const QString effective_name = !g_app_name.isEmpty() ? g_app_name : QStringLiteral("tray");
-      if (QCoreApplication::applicationName().isEmpty()) {
-        QCoreApplication::setApplicationName(effective_name);
-      }
-      if (QGuiApplication::applicationDisplayName().isEmpty()) {
-        if (!g_app_display_name.isEmpty()) {
-          QGuiApplication::setApplicationDisplayName(g_app_display_name);
-        } else {
-          const QString display_name =
-            (tray != nullptr && tray->tooltip != nullptr) ? QString::fromUtf8(tray->tooltip) : effective_name;
-          QGuiApplication::setApplicationDisplayName(display_name);
-        }
-      }
-      if (QGuiApplication::desktopFileName().isEmpty()) {
-        if (!g_desktop_name.isEmpty()) {
-          QGuiApplication::setDesktopFileName(g_desktop_name);
-        } else {
-          QString desktop_name = QCoreApplication::applicationName();
-          if (!desktop_name.endsWith(QStringLiteral(".desktop"))) {
-            desktop_name += QStringLiteral(".desktop");
-          }
-          QGuiApplication::setDesktopFileName(desktop_name);
-        }
-      }
-
-      // Show the context menu on left-click (Trigger).
-      // Qt handles right-click natively via setContextMenu on both X11/XEmbed and
-      // SNI (Wayland/AppIndicators), so we do not handle Context here.
-      // The menu position is captured immediately before deferring by a short timer.
-      // Deferring allows any
-      // platform pointer grab from the tray click to be released before the menu
-      // establishes its own grab.
-      // activateWindow() gives the menu window X11 focus so that the subsequent
-      // XGrabPointer inside popup() succeeds, enabling click-outside dismissal on Xorg.
-      QObject::connect(g_tray_icon, &QSystemTrayIcon::activated, [](QSystemTrayIcon::ActivationReason reason) {
-        const bool left_click_activation =
-          (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::Context);
-
-        if (!left_click_activation) {
-          return;
-        }
-
-        const QPoint click_pos = QCursor::pos();
-        QTimer::singleShot(30, g_tray_icon, [click_pos]() {
-          popup_menu_for_activation(click_pos);
-        });
-      });
-
-      // Defer D-Bus ActionInvoked handler setup to the first event-loop iteration.
-      // Creating QDBusConnection socket notifiers before the event loop starts can
-      // trigger a "QSocketNotifier: Can only be used with threads started with QThread"
-      // warning when the tray runs in a std::thread. Deferring via QTimer::singleShot
-      // ensures the socket notifiers are created while the event dispatcher is active.
-      if (g_notification_handler == nullptr) {
-        g_notification_handler = new TrayNotificationHandler();  // NOSONAR(cpp:S5025) - deleted in destroy_app()
-        QTimer::singleShot(0, g_notification_handler, []() {
-          if (g_notification_handler != nullptr) {
-            QDBusConnection::sessionBus().connect(
-              QStringLiteral("org.freedesktop.Notifications"),
-              QStringLiteral("/org/freedesktop/Notifications"),
-              QStringLiteral("org.freedesktop.Notifications"),
-              QStringLiteral("ActionInvoked"),
-              g_notification_handler,
-              SLOT(onActionInvoked(uint, QString))
-            );
-          }
-        });
-      }
-
-      tray_update(tray);
-      g_tray_icon->show();
+      initialize_tray(tray, &result);
     });
     return result;
   }
@@ -582,7 +742,7 @@ extern "C" {
       if (g_app_owned) {
         QApplication::processEvents();
       } else {
-        QCoreApplication *app_inst = QCoreApplication::instance();
+        const QCoreApplication *app_inst = QCoreApplication::instance();
         if (app_inst != nullptr && QThread::currentThread() == app_inst->thread()) {
           QApplication::processEvents();
         }
@@ -592,135 +752,16 @@ extern "C" {
     return g_loop_result;
   }
 
-  void tray_update(struct tray *tray) {
+  void tray_update(struct tray *tray) {  // NOSONAR(cpp:S995) - C API requires this exact mutable-pointer signature
     run_on_qt_thread([tray]() {
-      if (g_tray_icon == nullptr) {
-        return;
-      }
-
-      QIcon tray_icon = resolve_tray_icon(tray);
-      if (tray_icon.isNull() && !g_tray_icon->icon().isNull()) {
-        tray_icon = g_tray_icon->icon();
-      }
-      if (tray_icon.isNull()) {
-        tray_icon = QApplication::style()->standardIcon(QStyle::SP_ComputerIcon);
-      }
-      // Only update the icon when the resolved icon is valid. Setting a null icon
-      // clears the tray icon and triggers "No Icon set" warnings (Qt6 is stricter
-      // about QIcon::fromTheme when the name is not found in the active theme).
-      if (!tray_icon.isNull()) {
-        g_tray_icon->setIcon(tray_icon);
-      }
-
-      if (tray->tooltip != nullptr) {
-        g_tray_icon->setToolTip(QString::fromUtf8(tray->tooltip));
-      }
-
-      if (tray->menu != nullptr) {
-        QMenu *existing_menu = g_tray_icon->contextMenu();
-        if (existing_menu != nullptr && menu_layout_matches(existing_menu, tray->menu)) {
-          update_menu_state(existing_menu, tray->menu);
-        } else {
-          // setContextMenu does not take ownership; delete the old menu before replacing it.
-          QMenu *new_menu = build_menu(tray->menu, nullptr);  // NOSONAR(cpp:S5025) - deleted via old_menu path or on next update
-          g_tray_icon->setContextMenu(new_menu);
-          if (existing_menu != nullptr) {
-            // hide() before delete releases any X11 pointer grab held by the popup.
-            // Skipping this leaves the grab active, causing future popup menus to appear
-            // but receive no pointer events, so QAction::triggered is never emitted.
-            existing_menu->hide();
-            delete existing_menu;  // NOSONAR(cpp:S5025) - required; Qt does not own this
-          }
-        }
-      }
-
-      const QString text = tray->notification_text != nullptr ? QString::fromUtf8(tray->notification_text) : QString();
-
-      // Reset previous notification state before setting up the new one.
-      if (g_notification_handler != nullptr) {
-        g_notification_handler->notification_id = 0;
-        g_notification_handler->cb = nullptr;
-      }
-      QObject::disconnect(g_tray_icon, &QSystemTrayIcon::messageClicked, nullptr, nullptr);
-      close_notification();
-
-      if (!text.isEmpty()) {
-        const QString title = tray->notification_title != nullptr ? QString::fromUtf8(tray->notification_title) : QString();
-        const char *icon_path = tray->notification_icon != nullptr ? tray->notification_icon : tray->icon;
-        QString icon;
-        if (icon_path != nullptr) {
-          QFileInfo fi(QString::fromUtf8(icon_path));
-          icon = fi.exists() ? QUrl::fromLocalFile(fi.absoluteFilePath()).toString() : QString::fromUtf8(icon_path);
-        }
-        QVariantMap hints;
-        if (!icon.isEmpty()) {
-          hints[QStringLiteral("image-path")] = icon;
-        }
-
-        QDBusInterface iface(
-          QStringLiteral("org.freedesktop.Notifications"),
-          QStringLiteral("/org/freedesktop/Notifications"),
-          QStringLiteral("org.freedesktop.Notifications")
-        );
-        if (iface.isValid()) {
-          // Include the "default" action so that clicking the notification body fires ActionInvoked.
-          // QSystemTrayIcon::messageClicked is NOT emitted for D-Bus-dispatched notifications,
-          // so the callback must be routed through TrayNotificationHandler::onActionInvoked instead.
-          QStringList actions;
-          if (tray->notification_cb != nullptr) {
-            actions << QStringLiteral("default") << QString();
-          }
-          // Store the callback before the async Notify so tray_simulate_notification_click works
-          // even when the notification daemon is unavailable and the D-Bus reply is invalid.
-          if (g_notification_handler != nullptr) {
-            g_notification_handler->cb = tray->notification_cb;
-          }
-          // Use asyncCall to avoid entering a nested Qt event loop while waiting for the D-Bus
-          // reply. A synchronous call here would allow re-entrant tray_update dispatches from
-          // other threads (via BlockingQueuedConnection), which can delete and replace the context
-          // QMenu mid-build, breaking all QAction signal connections.
-          QDBusPendingCall pending = iface.asyncCall(
-            QStringLiteral("Notify"),
-            QGuiApplication::applicationDisplayName(),
-            static_cast<uint>(0),
-            icon,
-            title,
-            text,
-            actions,
-            hints,
-            5000
-          );
-          auto *watcher = new QDBusPendingCallWatcher(pending);  // NOSONAR(cpp:S5025) - deleted via deleteLater in finished handler
-          QObject::connect(watcher, &QDBusPendingCallWatcher::finished, watcher, [watcher]() {
-            const QDBusPendingReply<uint> reply = *watcher;
-            if (reply.isValid() && g_tray_icon != nullptr) {
-              g_notification_id = reply.value();
-              if (g_notification_handler != nullptr) {
-                g_notification_handler->notification_id = g_notification_id;
-              }
-            }
-            watcher->deleteLater();
-          });
-        } else {
-          // D-Bus unavailable: fall back to Qt's built-in balloon and messageClicked signal.
-          if (tray->notification_cb != nullptr && g_notification_handler != nullptr) {
-            g_notification_handler->cb = tray->notification_cb;
-            QObject::connect(g_tray_icon, &QSystemTrayIcon::messageClicked, []() {
-              if (g_notification_handler != nullptr && g_notification_handler->cb != nullptr) {
-                g_notification_handler->cb();
-              }
-            });
-          }
-          g_tray_icon->showMessage(title, text, QSystemTrayIcon::Information, 5000);
-        }
-      }
+      update_tray_state(tray);
     });
   }
 
   void tray_show_menu(void) {
     run_on_qt_thread([]() {
       if (g_tray_icon != nullptr) {
-        QMenu *menu = g_tray_icon->contextMenu();
+        const QMenu *menu = g_tray_icon->contextMenu();
         if (menu != nullptr) {
           popup_menu_for_activation(QPoint());
           QApplication::processEvents();
@@ -751,7 +792,7 @@ extern "C" {
       if (g_tray_icon == nullptr || index < 0) {
         return;
       }
-      QMenu *menu = g_tray_icon->contextMenu();
+      const QMenu *menu = g_tray_icon->contextMenu();
       if (menu == nullptr) {
         return;
       }
@@ -779,7 +820,7 @@ extern "C" {
     }
   }
 
-  void tray_set_log_callback(void (*cb)(int level, const char *msg)) {
+  void tray_set_log_callback(void (*cb)(int level, const char *msg)) {  // NOSONAR(cpp:S5205) - C API requires a plain function pointer callback type
     g_log_cb = cb;
     if (cb != nullptr) {
       qInstallMessageHandler(qt_message_handler);
