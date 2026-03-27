@@ -140,6 +140,13 @@ void tray_set_log_callback(void (*cb)(int level, const char *msg)) {
   (void) cb;
 }
 
+void tray_set_app_info(const char *app_name, const char *app_display_name, const char *desktop_name) {
+  // Application metadata is not applicable on macOS.
+  (void) app_name;
+  (void) app_display_name;
+  (void) desktop_name;
+}
+
 void tray_exit(void) {
   // Remove the status item from the status bar on the main thread
   // NSStatusBar operations must be performed on the main thread

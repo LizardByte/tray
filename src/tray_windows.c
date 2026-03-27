@@ -347,6 +347,13 @@ void tray_set_log_callback(void (*cb)(int level, const char *msg)) {
   (void) cb;
 }
 
+void tray_set_app_info(const char *app_name, const char *app_display_name, const char *desktop_name) {
+  // Application metadata is not applicable on Windows.
+  (void) app_name;
+  (void) app_display_name;
+  (void) desktop_name;
+}
+
 void tray_exit(void) {
   Shell_NotifyIconW(NIM_DELETE, &nid);
   SendMessage(hwnd, WM_CLOSE, 0, 0);
