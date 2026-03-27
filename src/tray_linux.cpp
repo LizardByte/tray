@@ -4,6 +4,7 @@
  */
 // standard includes
 #include <atomic>
+#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <utility>
@@ -76,6 +77,8 @@ namespace {
   bool g_app_owned = false;  // NOSONAR(cpp:S5421) - mutable state, not const
   std::atomic<bool> g_exit_pending {false};  // NOSONAR(cpp:S5421) - written from any thread, read from tray_loop
   uint g_notification_id = 0;  // NOSONAR(cpp:S5421) - tracks last D-Bus notification ID for proper cleanup
+  std::uint64_t g_notification_generation = 0;  // NOSONAR(cpp:S5421) - invalidates stale async Notify replies
+  std::uint64_t g_notification_active_generation = 0;  // NOSONAR(cpp:S5421) - generation currently allowed to own notification_id
   void (*g_log_cb)(int, const char *) = nullptr;  // NOSONAR(cpp:S5421) - mutable state, not const
   QString g_app_name;  // NOSONAR(cpp:S5421) - set via tray_set_app_info before tray_init
   QString g_app_display_name;  // NOSONAR(cpp:S5421) - set via tray_set_app_info before tray_init
@@ -298,20 +301,27 @@ namespace {
     }
   }
 
-  void close_notification() {
-    if (g_notification_id == 0) {
+  void close_notification_id(uint notification_id) {
+    if (notification_id == 0) {
       return;
     }
-    const uint id_to_close = g_notification_id;
-    g_notification_id = 0;
     QDBusInterface iface(
       QStringLiteral("org.freedesktop.Notifications"),
       QStringLiteral("/org/freedesktop/Notifications"),
       QStringLiteral("org.freedesktop.Notifications")
     );
     if (iface.isValid()) {
-      iface.asyncCall(QStringLiteral("CloseNotification"), id_to_close);
+      iface.asyncCall(QStringLiteral("CloseNotification"), notification_id);
     }
+  }
+
+  void close_notification() {
+    if (g_notification_id == 0) {
+      return;
+    }
+    const uint id_to_close = g_notification_id;
+    g_notification_id = 0;
+    close_notification_id(id_to_close);
   }
 
   QMenu *build_menu(struct tray_menu *m, QWidget *parent) {
@@ -512,11 +522,15 @@ namespace {
   }
 
   void reset_notification_state() {
+    g_notification_generation++;
+    g_notification_active_generation = 0;
     if (g_notification_handler != nullptr) {
       g_notification_handler->notification_id = 0;
       g_notification_handler->cb = nullptr;
     }
-    QObject::disconnect(g_tray_icon, &QSystemTrayIcon::messageClicked, nullptr, nullptr);
+    if (g_tray_icon != nullptr) {
+      QObject::disconnect(g_tray_icon, &QSystemTrayIcon::messageClicked, nullptr, nullptr);
+    }
     close_notification();
   }
 
@@ -534,18 +548,37 @@ namespace {
 
   void destroy_tray();
 
-  void handle_notification_reply(QDBusPendingCallWatcher *watcher) {
+  void handle_notification_reply(QDBusPendingCallWatcher *watcher, const std::uint64_t notification_generation) {
     const QDBusPendingReply<uint> reply = *watcher;
-    if (reply.isValid() && g_tray_icon != nullptr) {
-      g_notification_id = reply.value();
-      if (g_notification_handler != nullptr) {
-        g_notification_handler->notification_id = g_notification_id;
-      }
+    if (!reply.isValid() || g_tray_icon == nullptr) {
+      watcher->deleteLater();
+      return;
+    }
+
+    const uint reply_id = reply.value();
+    const bool stale_reply =
+      notification_generation != g_notification_active_generation || g_notification_active_generation == 0;
+    if (stale_reply) {
+      // The request was cleared or superseded before Notify returned; close it immediately.
+      close_notification_id(reply_id);
+      watcher->deleteLater();
+      return;
+    }
+
+    g_notification_id = reply_id;
+    if (g_notification_handler != nullptr) {
+      g_notification_handler->notification_id = g_notification_id;
     }
     watcher->deleteLater();
   }
 
-  bool send_dbus_notification(const struct tray *tray, const QString &title, const QString &text, const QString &icon) {
+  bool send_dbus_notification(
+    const struct tray *tray,
+    const QString &title,
+    const QString &text,
+    const QString &icon,
+    const std::uint64_t notification_generation
+  ) {
     QVariantMap hints;
     if (!icon.isEmpty()) {
       hints[QStringLiteral("image-path")] = icon;
@@ -580,8 +613,8 @@ namespace {
       5000
     );
     auto *watcher = new QDBusPendingCallWatcher(pending);  // NOSONAR(cpp:S5025) - deleted via deleteLater in finished handler
-    QObject::connect(watcher, &QDBusPendingCallWatcher::finished, watcher, [](QDBusPendingCallWatcher *finished) {
-      handle_notification_reply(finished);
+    QObject::connect(watcher, &QDBusPendingCallWatcher::finished, watcher, [notification_generation](QDBusPendingCallWatcher *finished) {
+      handle_notification_reply(finished, notification_generation);
     });
     return true;
   }
@@ -606,10 +639,13 @@ namespace {
       return;
     }
 
+    const std::uint64_t notification_generation = g_notification_generation;
+    g_notification_active_generation = notification_generation;
+
     const QString title = tray->notification_title != nullptr ? QString::fromUtf8(tray->notification_title) : QString();
     const QString icon = resolve_notification_icon(tray);
 
-    if (!send_dbus_notification(tray, title, text, icon)) {
+    if (!send_dbus_notification(tray, title, text, icon, notification_generation)) {
       // D-Bus may be unavailable; fall back to Qt's built-in balloon.
       send_qt_notification_fallback(tray, title, text);
     }
@@ -659,11 +695,7 @@ namespace {
   }
 
   void destroy_tray() {
-    close_notification();
-    if (g_notification_handler != nullptr) {
-      g_notification_handler->notification_id = 0;
-      g_notification_handler->cb = nullptr;
-    }
+    reset_notification_state();
     if (g_tray_icon != nullptr) {
       g_tray_icon->hide();
       QMenu *menu = g_tray_icon->contextMenu();

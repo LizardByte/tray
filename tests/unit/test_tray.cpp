@@ -80,6 +80,18 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F generates subclasses that need access
     if (!trayRunning) {
       return;
     }
+
+    // Ensure per-test notification state is cleared before teardown so
+    // screenshot tests do not inherit prior notification popups.
+    testTray.notification_title = nullptr;
+    testTray.notification_text = nullptr;
+    testTray.notification_icon = nullptr;
+    testTray.notification_cb = nullptr;
+    tray_update(&testTray);
+    for (int i = 0; i < 20; ++i) {
+      tray_loop(0);
+    }
+
     tray_exit();
     tray_loop(0);
     trayRunning = false;
@@ -194,6 +206,10 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F generates subclasses that need access
     trayRunning = false;
     testTray.icon = TRAY_ICON1;
     testTray.tooltip = "TestTray";
+    testTray.notification_title = nullptr;
+    testTray.notification_text = nullptr;
+    testTray.notification_icon = nullptr;
+    testTray.notification_cb = nullptr;
     testTray.menu = g_submenu;
     g_submenu[1].checked = 1;
   }
