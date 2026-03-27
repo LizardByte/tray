@@ -11,12 +11,36 @@ permissions:
   actions: read
   contents: write
   pull-requests: write
+  statuses: write
 
 jobs:
   publish:
     if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
+      - name: Set Commit Status (In Progress)
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8.0.0
+        env:
+          WORKFLOW_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        with:
+          script: |
+            const {
+              GITHUB_REPOSITORY,
+              GITHUB_RUN_ID,
+              GITHUB_SERVER_URL,
+              WORKFLOW_HEAD_SHA,
+            } = process.env;
+            const targetUrl = `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}`;
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: WORKFLOW_HEAD_SHA,
+              state: 'pending',
+              target_url: targetUrl,
+              description: 'Screenshots publishing in progress',
+              context: 'publish-screenshots',
+            });
+
       - name: Download Artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
@@ -116,16 +140,27 @@ jobs:
       - name: Build PR Screenshot Comparison Comment
         if: steps.context.outputs.is_pr == 'true'
         env:
-          REPOSITORY: ${{ github.repository }}
-          PR_NUMBER: ${{ steps.context.outputs.pr_number }}
           BASELINE_ROOT: screenshots-repo/baseline
+          PR_NUMBER: ${{ steps.context.outputs.pr_number }}
           PR_ROOT: prepared
+          WORKFLOW_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          WORKFLOW_RUN_NUMBER: ${{ github.event.workflow_run.run_number }}
+          WORKFLOW_RUN_URL: ${{ github.event.workflow_run.html_url }}
         run: |
-          raw_base="https://raw.githubusercontent.com/${REPOSITORY}/screenshots"
+          raw_base="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/screenshots"
           baseline_root="${BASELINE_ROOT}"
           pr_root="${PR_ROOT}"
+          cache_buster="${WORKFLOW_HEAD_SHA}"
+
+          run_date="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
           {
+            echo "| | |"
+            echo "| --- | --- |"
+            printf "| **Last Updated** | %s |\n" "${run_date}"
+            printf "| **Source Run** | [CI Run #%s](%s) |\n" "${WORKFLOW_RUN_NUMBER}" "${WORKFLOW_RUN_URL}"
+            printf "| **Commit** | \`%s\` |\n" "${WORKFLOW_HEAD_SHA}"
+            echo
             echo "## Screenshot Comparison"
             echo
             printf "PR #%s screenshots vs \`screenshots\` baseline.\n\n" "${PR_NUMBER}"
@@ -192,12 +227,14 @@ jobs:
 
               baseline_cell=""
               if grep -Fxq "${rel_file}" "${tmp_baseline}"; then
-                baseline_cell="<img src=\"${raw_base}/baseline/${matrix}/${rel_file}\" width=\"320\" />"
+                img_src="${raw_base}/baseline/${matrix}/${rel_file}?v=${cache_buster}"
+                baseline_cell="<img src=\"${img_src}\" width=\"320\" />"
               fi
 
               pr_cell=""
               if grep -Fxq "${rel_file}" "${tmp_pr}"; then
-                pr_cell="<img src=\"${raw_base}/pull-requests/PR-${PR_NUMBER}/${matrix}/${rel_file}\" width=\"320\" />"
+                img_src="${raw_base}/pull-requests/PR-${PR_NUMBER}/${matrix}/${rel_file}?v=${cache_buster}"
+                pr_cell="<img src=\"${img_src}\" width=\"320\" />"
               fi
 
               printf "| \`%s\` | %s | %s |\n" "${rel_file}" "${baseline_cell}" "${pr_cell}" >> pr-comment.md
@@ -255,3 +292,29 @@ jobs:
           issue: ${{ steps.context.outputs.pr_number }}
           message-path: pr-comment.md
           message-id: screenshot-comparison
+
+      - name: Set Commit Status (Complete)
+        if: always()
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8.0.0
+        env:
+          JOB_STATUS: ${{ job.status }}
+          WORKFLOW_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        with:
+          script: |
+            const success = process.env.JOB_STATUS === 'success';
+            const {
+              GITHUB_REPOSITORY,
+              GITHUB_RUN_ID,
+              GITHUB_SERVER_URL,
+              WORKFLOW_HEAD_SHA,
+            } = process.env;
+            const targetUrl = `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}`;
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: WORKFLOW_HEAD_SHA,
+              state: success ? 'success' : 'failure',
+              target_url: targetUrl,
+              description: success ? 'Screenshots published successfully' : 'Screenshots publishing failed',
+              context: 'publish-screenshots',
+            });
