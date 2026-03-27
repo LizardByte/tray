@@ -82,6 +82,17 @@ extern "C" {
   void tray_simulate_notification_click(void);
 
   /**
+   * @brief Simulate clicking a top-level menu item by index (for testing purposes).
+   *
+   * On Linux (Qt): triggers the QAction associated with the given top-level menu
+   * index (separators and submenus are ignored).
+   * On other platforms: no-op.
+   *
+   * @param index Zero-based index in the top-level tray menu.
+   */
+  void tray_simulate_menu_item_click(int index);
+
+  /**
    * @brief Terminate UI loop.
    */
   void tray_exit(void);
@@ -105,9 +116,11 @@ extern "C" {
    * name, display name, and desktop file name used for D-Bus registration. On
    * other platforms this function is a no-op.
    *
-   * @param app_name Application name. NULL uses the default ("tray").
-   * @param app_display_name Display name shown in notifications. NULL derives
-   *   from the tray tooltip or falls back to app_name.
+   * @param app_name Application name used as a technical identifier (e.g., for
+   *   D-Bus registration). Converted to lowercase automatically. NULL uses the
+   *   default ("tray").
+   * @param app_display_name Human-readable name shown in notifications and UI.
+   *   NULL derives from the tray tooltip or falls back to app_name.
    * @param desktop_name Desktop file name for D-Bus. NULL appends ".desktop"
    *   to app_name.
    */

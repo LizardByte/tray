@@ -12,12 +12,15 @@
 #include "tray.h"
 
 // Qt includes
+#include <QAction>
 #include <QApplication>
 #include <QCoreApplication>
 #include <QCursor>
 #include <QDBusConnection>
 #include <QDBusInterface>
-#include <QDBusReply>
+#include <QDBusPendingCall>
+#include <QDBusPendingCallWatcher>
+#include <QDBusPendingReply>
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QIcon>
@@ -303,15 +306,16 @@ namespace {
     if (g_notification_id == 0) {
       return;
     }
+    const uint id_to_close = g_notification_id;
+    g_notification_id = 0;
     QDBusInterface iface(
       QStringLiteral("org.freedesktop.Notifications"),
       QStringLiteral("/org/freedesktop/Notifications"),
       QStringLiteral("org.freedesktop.Notifications")
     );
     if (iface.isValid()) {
-      iface.call(QStringLiteral("CloseNotification"), g_notification_id);
+      iface.asyncCall(QStringLiteral("CloseNotification"), id_to_close);
     }
-    g_notification_id = 0;
   }
 
   QMenu *build_menu(struct tray_menu *m, QWidget *parent) {
@@ -322,7 +326,8 @@ namespace {
       } else if (m->submenu != nullptr) {
         QMenu *sub = build_menu(m->submenu, menu);
         sub->setTitle(QString::fromUtf8(m->text));
-        menu->addMenu(sub);
+        QAction *sub_action = menu->addMenu(sub);
+        sub_action->setEnabled(m->disabled == 0);
       } else {
         auto *action = menu->addAction(QString::fromUtf8(m->text));
         action->setEnabled(m->disabled == 0);
@@ -330,15 +335,77 @@ namespace {
           action->setCheckable(true);
           action->setChecked(m->checked != 0);
         }
-        if (m->cb != nullptr) {
-          struct tray_menu *item = m;
-          QObject::connect(action, &QAction::triggered, [item]() {
+        action->setData(QVariant::fromValue<quintptr>(reinterpret_cast<quintptr>(m)));
+        QObject::connect(action, &QAction::triggered, menu, [action]() {
+          auto *item = reinterpret_cast<struct tray_menu *>(action->data().value<quintptr>());
+          if (item != nullptr && item->cb != nullptr) {
             item->cb(item);
-          });
-        }
+          }
+        });
       }
     }
     return menu;
+  }
+
+  bool menu_layout_matches(const QMenu *menu, const struct tray_menu *items) {
+    if (menu == nullptr) {
+      return false;
+    }
+
+    const QList<QAction *> actions = menu->actions();
+    int action_index = 0;
+    for (const struct tray_menu *item = items; item != nullptr && item->text != nullptr; item++) {
+      if (action_index >= actions.size()) {
+        return false;
+      }
+
+      QAction *action = actions.at(action_index++);
+      if (std::strcmp(item->text, "-") == 0) {
+        if (!action->isSeparator()) {
+          return false;
+        }
+        continue;
+      }
+
+      if (item->submenu != nullptr) {
+        QMenu *submenu = action->menu();
+        if (submenu == nullptr || !menu_layout_matches(submenu, item->submenu)) {
+          return false;
+        }
+      } else if (action->isSeparator() || action->menu() != nullptr) {
+        return false;
+      }
+    }
+
+    return action_index == actions.size();
+  }
+
+  void update_menu_state(QMenu *menu, struct tray_menu *items) {
+    if (menu == nullptr || items == nullptr) {
+      return;
+    }
+
+    const QList<QAction *> actions = menu->actions();
+    int action_index = 0;
+    for (struct tray_menu *item = items; item != nullptr && item->text != nullptr; item++) {
+      QAction *action = actions.at(action_index++);
+      if (std::strcmp(item->text, "-") == 0) {
+        continue;
+      }
+
+      action->setText(QString::fromUtf8(item->text));
+      action->setEnabled(item->disabled == 0);
+      if (item->submenu != nullptr) {
+        update_menu_state(action->menu(), item->submenu);
+        continue;
+      }
+
+      action->setCheckable(item->checkbox != 0);
+      if (item->checkbox != 0) {
+        action->setChecked(item->checked != 0);
+      }
+      action->setData(QVariant::fromValue<quintptr>(reinterpret_cast<quintptr>(item)));
+    }
   }
 
   void destroy_tray() {
@@ -353,7 +420,10 @@ namespace {
       g_tray_icon->setContextMenu(nullptr);
       delete g_tray_icon;  // NOSONAR(cpp:S5025) - raw pointer; deleted explicitly before QApplication is destroyed
       g_tray_icon = nullptr;
-      delete menu;  // NOSONAR(cpp:S5025) - QSystemTrayIcon does not own the context menu
+      if (menu != nullptr) {
+        menu->hide();
+        delete menu;  // NOSONAR(cpp:S5025) - QSystemTrayIcon does not own the context menu
+      }
     }
   }
 
@@ -547,11 +617,21 @@ extern "C" {
       }
 
       if (tray->menu != nullptr) {
-        // setContextMenu does not take ownership; delete the old menu before replacing it.
-        QMenu *old_menu = g_tray_icon->contextMenu();
-        QMenu *new_menu = build_menu(tray->menu, nullptr);  // NOSONAR(cpp:S5025) - deleted via old_menu path or on next update
-        g_tray_icon->setContextMenu(new_menu);
-        delete old_menu;  // NOSONAR(cpp:S5025) - required; Qt does not own this
+        QMenu *existing_menu = g_tray_icon->contextMenu();
+        if (existing_menu != nullptr && menu_layout_matches(existing_menu, tray->menu)) {
+          update_menu_state(existing_menu, tray->menu);
+        } else {
+          // setContextMenu does not take ownership; delete the old menu before replacing it.
+          QMenu *new_menu = build_menu(tray->menu, nullptr);  // NOSONAR(cpp:S5025) - deleted via old_menu path or on next update
+          g_tray_icon->setContextMenu(new_menu);
+          if (existing_menu != nullptr) {
+            // hide() before delete releases any X11 pointer grab held by the popup.
+            // Skipping this leaves the grab active, causing future popup menus to appear
+            // but receive no pointer events, so QAction::triggered is never emitted.
+            existing_menu->hide();
+            delete existing_menu;  // NOSONAR(cpp:S5025) - required; Qt does not own this
+          }
+        }
       }
 
       const QString text = tray->notification_text != nullptr ? QString::fromUtf8(tray->notification_text) : QString();
@@ -590,14 +670,18 @@ extern "C" {
           if (tray->notification_cb != nullptr) {
             actions << QStringLiteral("default") << QString();
           }
-          // Store the callback before calling Notify so tray_simulate_notification_click works
+          // Store the callback before the async Notify so tray_simulate_notification_click works
           // even when the notification daemon is unavailable and the D-Bus reply is invalid.
           if (g_notification_handler != nullptr) {
             g_notification_handler->cb = tray->notification_cb;
           }
-          QDBusReply<uint> reply = iface.call(
+          // Use asyncCall to avoid entering a nested Qt event loop while waiting for the D-Bus
+          // reply. A synchronous call here would allow re-entrant tray_update dispatches from
+          // other threads (via BlockingQueuedConnection), which can delete and replace the context
+          // QMenu mid-build, breaking all QAction signal connections.
+          QDBusPendingCall pending = iface.asyncCall(
             QStringLiteral("Notify"),
-            QStringLiteral("tray"),
+            QGuiApplication::applicationDisplayName(),
             static_cast<uint>(0),
             icon,
             title,
@@ -606,12 +690,17 @@ extern "C" {
             hints,
             5000
           );
-          if (reply.isValid()) {
-            g_notification_id = reply.value();
-            if (g_notification_handler != nullptr) {
-              g_notification_handler->notification_id = g_notification_id;
+          auto *watcher = new QDBusPendingCallWatcher(pending);  // NOSONAR(cpp:S5025) - deleted via deleteLater in finished handler
+          QObject::connect(watcher, &QDBusPendingCallWatcher::finished, watcher, [watcher]() {
+            const QDBusPendingReply<uint> reply = *watcher;
+            if (reply.isValid() && g_tray_icon != nullptr) {
+              g_notification_id = reply.value();
+              if (g_notification_handler != nullptr) {
+                g_notification_handler->notification_id = g_notification_id;
+              }
             }
-          }
+            watcher->deleteLater();
+          });
         } else {
           // D-Bus unavailable: fall back to Qt's built-in balloon and messageClicked signal.
           if (tray->notification_cb != nullptr && g_notification_handler != nullptr) {
@@ -654,6 +743,27 @@ extern "C" {
           g_notification_handler->cb();
         }
       }
+    });
+  }
+
+  void tray_simulate_menu_item_click(int index) {
+    run_on_qt_thread([index]() {
+      if (g_tray_icon == nullptr || index < 0) {
+        return;
+      }
+      QMenu *menu = g_tray_icon->contextMenu();
+      if (menu == nullptr) {
+        return;
+      }
+      const QList<QAction *> actions = menu->actions();
+      if (index >= actions.size()) {
+        return;
+      }
+      QAction *action = actions.at(index);
+      if (action == nullptr || action->isSeparator() || action->menu() != nullptr || !action->isEnabled()) {
+        return;
+      }
+      action->trigger();
     });
   }
 

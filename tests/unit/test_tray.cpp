@@ -692,4 +692,42 @@ TEST_F(TrayTest, TestNotificationCallbackFiredOnClick) {
   tray_update(&testTray);
 }
 
+TEST_F(TrayTest, TestMenuCallbackAfterNotificationUpdate) {
+  static int callbackCount = 0;
+  callbackCount = 0;
+
+  auto first_item_callback = [](struct tray_menu *item) {  // NOSONAR(cpp:S1172) - unused param required by tray_menu.cb function pointer type
+    callbackCount++;
+    (void) item;
+  };
+
+  void (*original_cb)(struct tray_menu *) = testTray.menu[0].cb;
+  testTray.menu[0].cb = first_item_callback;
+
+  int initResult = tray_init(&testTray);
+  trayRunning = (initResult == 0);
+  ASSERT_EQ(initResult, 0);
+
+  tray_simulate_menu_item_click(0);
+  tray_loop(0);
+  EXPECT_EQ(callbackCount, 1);
+
+  testTray.notification_title = "Menu Callback Regression";
+  testTray.notification_text = "Notification update should not break menu callbacks";
+  testTray.notification_icon = TRAY_ICON1;
+  tray_update(&testTray);
+  WaitForTrayReady();
+
+  tray_simulate_menu_item_click(0);
+  tray_loop(0);
+  EXPECT_EQ(callbackCount, 2);
+
+  testTray.notification_title = nullptr;
+  testTray.notification_text = nullptr;
+  testTray.notification_icon = nullptr;
+  tray_update(&testTray);
+
+  testTray.menu[0].cb = original_cb;
+}
+
 #endif  // TRAY_QT

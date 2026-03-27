@@ -342,6 +342,11 @@ void tray_simulate_notification_click(void) {
   // Simulating this from outside the message pump is not supported here.
 }
 
+void tray_simulate_menu_item_click(int index) {
+  // Programmatic menu-item simulation is not supported here.
+  (void) index;
+}
+
 void tray_set_log_callback(void (*cb)(int level, const char *msg)) {
   // Qt is not used on Windows; log routing is not applicable.
   (void) cb;
