@@ -29,6 +29,7 @@
 #include <QMenu>
 #include <QPixmap>
 #include <QScreen>
+#include <QStringList>
 #include <QStyle>
 #include <QSystemTrayIcon>
 #include <QThread>
@@ -139,6 +140,58 @@ namespace {
 
     const QString socket_path = QDir(QString::fromLocal8Bit(runtime_dir)).filePath(display_name);
     return QFileInfo::exists(socket_path);
+  }
+
+  QString discover_wayland_display_name() {
+    if (!qEnvironmentVariableIsEmpty("WAYLAND_DISPLAY")) {
+      return QString();
+    }
+
+    const QByteArray runtime_dir_env = qgetenv("XDG_RUNTIME_DIR");
+    if (runtime_dir_env.isEmpty()) {
+      return QString();
+    }
+
+    const QString runtime_dir_path = QString::fromLocal8Bit(runtime_dir_env).trimmed();
+    if (runtime_dir_path.isEmpty()) {
+      return QString();
+    }
+
+    const QDir runtime_dir(runtime_dir_path);
+    if (!runtime_dir.exists()) {
+      return QString();
+    }
+
+    const QStringList entries = runtime_dir.entryList(
+      QStringList() << QStringLiteral("wayland-*"),
+      QDir::AllEntries | QDir::NoDotAndDotDot | QDir::System,
+      QDir::Name
+    );
+    if (entries.isEmpty()) {
+      return QString();
+    }
+
+    QString selected;
+    for (const QString &entry : entries) {
+      if (const QString candidate_path = runtime_dir.filePath(entry); !QFileInfo::exists(candidate_path)) {
+        continue;
+      }
+      if (entry == QStringLiteral("wayland-0")) {
+        return entry;
+      }
+      if (selected.isEmpty()) {
+        selected = entry;
+      }
+    }
+    return selected;
+  }
+
+  bool try_autodiscover_wayland_display() {
+    const QString discovered = discover_wayland_display_name();
+    if (discovered.isEmpty()) {
+      return false;
+    }
+    return qputenv("WAYLAND_DISPLAY", discovered.toLocal8Bit());
   }
 
   bool has_x11_display_endpoint() {
@@ -799,6 +852,9 @@ extern "C" {
 
   int tray_init(struct tray *tray) {
     if (QApplication::instance() == nullptr) {
+      if (try_autodiscover_wayland_display() && g_log_cb != nullptr) {
+        g_log_cb(1, "Qt tray: auto-discovered WAYLAND_DISPLAY from XDG_RUNTIME_DIR");
+      }
       if (should_force_headless_qpa_fallback()) {
         qputenv("QT_QPA_PLATFORM", QByteArrayLiteral("minimal"));
         if (g_log_cb != nullptr) {
