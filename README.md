@@ -15,11 +15,10 @@ The code is C++ friendly and will compile fine in C++98 and up. This is a fork o
 This fork adds the following features:
 
 - system tray notifications
-- support for both linux appindicator versions
 - unit tests
 - code coverage
-- refactored code, e.g. moved source code into the `src` directory
-- doxygen documentation, and readthedocs configuration
+- refactored code, e.g., moved source code into the `src` directory
+- doxygen documentation and readthedocs configuration
 
 ## Screenshots
 
@@ -33,32 +32,47 @@ This fork adds the following features:
 
 ## Supported platforms
 
-* Linux/Gtk (libayatana-appindicator3 or libappindicator3)
+* Linux/Qt (Qt5 or Qt6 Widgets)
 * Windows XP or newer (shellapi.h)
 * MacOS (Cocoa/AppKit)
 
 ## Prerequisites
 
 * CMake
-* [Ninja](https://ninja-build.org/), in order to have the same build commands on all platforms 
+* [Ninja](https://ninja-build.org/), to have the same build commands on all platforms.
 
 ### Linux Dependencies
+
+Install either Qt6 _or_ Qt5 development packages. The Linux backend requires
+Qt Widgets, DBus, and Svg modules.
 
 <div class="tabbed">
 
 - <b class="tab-title">Arch</b>
     ```bash
-    sudo pacman -S libayatana-appindicator
+    # Qt6
+    sudo pacman -S qt6-base qt6-svg
+
+    # Qt5
+    sudo pacman -S qt5-base qt5-svg
     ```
 
 - <b class="tab-title">Debian/Ubuntu</b>
     ```bash
-    sudo apt install libappindicator3-dev
+    # Qt6
+    sudo apt install qt6-base-dev qt6-svg-dev
+
+    # Qt5
+    sudo apt install qtbase5-dev libqt5svg5-dev
     ```
 
 - <b class="tab-title">Fedora</b>
     ```bash
-    sudo dnf install libappindicator-gtk3-devel
+    # Qt6
+    sudo dnf install qt6-qtbase-devel qt6-qtsvg-devel
+
+    # Qt5
+    sudo dnf install qt5-qtbase-devel qt5-qtsvg-devel
     ```
 
 </div>

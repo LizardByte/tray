@@ -5,7 +5,7 @@
 #ifndef TRAY_H
 #define TRAY_H
 
-#if defined(TRAY_WINAPI)
+#if defined(_WIN32)
   #include <Windows.h>
 #endif
 
@@ -74,11 +74,59 @@ extern "C" {
   void tray_show_menu(void);
 
   /**
+   * @brief Simulate a notification click, invoking the notification callback (for testing purposes).
+   *
+   * On Linux (Qt): triggers the stored notification callback as if the user clicked the notification.
+   * On other platforms: no-op.
+   */
+  void tray_simulate_notification_click(void);
+
+  /**
+   * @brief Simulate clicking a top-level menu item by index (for testing purposes).
+   *
+   * On Linux (Qt): triggers the QAction associated with the given top-level menu
+   * index (separators and submenus are ignored).
+   * On other platforms: no-op.
+   *
+   * @param index Zero-based index in the top-level tray menu.
+   */
+  void tray_simulate_menu_item_click(int index);
+
+  /**
    * @brief Terminate UI loop.
    */
   void tray_exit(void);
 
-#if defined(TRAY_WINAPI)
+  /**
+   * @brief Set a callback for log messages produced by the tray library.
+   *
+   * On Linux the callback is installed as a Qt message handler so all Qt
+   * diagnostic output is routed through it. On other platforms this function
+   * is a no-op.
+   *
+   * @param cb Callback invoked with level (0=debug, 1=info, 2=warning, 3=error)
+   *   and the message string. Pass NULL to restore the default logging behaviour.
+   */
+  void tray_set_log_callback(void (*cb)(int level, const char *msg));
+
+  /**
+   * @brief Set application metadata used by the tray library.
+   *
+   * Must be called before tray_init(). On Linux (Qt), sets the Qt application
+   * name, display name, and desktop file name used for D-Bus registration. On
+   * other platforms this function is a no-op.
+   *
+   * @param app_name Application name used as a technical identifier (e.g., for
+   *   D-Bus registration). Converted to lowercase automatically. NULL uses the
+   *   default ("tray").
+   * @param app_display_name Human-readable name shown in notifications and UI.
+   *   NULL derives from the tray tooltip or falls back to app_name.
+   * @param desktop_name Desktop file name for D-Bus. NULL appends ".desktop"
+   *   to app_name.
+   */
+  void tray_set_app_info(const char *app_name, const char *app_display_name, const char *desktop_name);
+
+#if defined(_WIN32)
   /**
    * @brief Get the tray window handle.
    * @return The window handle.

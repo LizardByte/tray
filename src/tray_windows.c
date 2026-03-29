@@ -3,10 +3,17 @@
  * @brief System tray implementation for Windows.
  */
 // standard includes
+#ifndef WIN32_LEAN_AND_MEAN
+  #define WIN32_LEAN_AND_MEAN  ///< Excludes rarely used APIs from Windows headers.
+#endif
+#ifndef NOMINMAX
+  #define NOMINMAX  ///< Prevents Windows.h from defining min and max macros.
+#endif
 #include <Windows.h>
 // clang-format off
 // build fails if shellapi.h is included before Windows.h
 #include <shellapi.h>
+#include <stdlib.h>
 // clang-format on
 
 // local includes
@@ -329,6 +336,28 @@ void tray_update(struct tray *tray) {
 
 void tray_show_menu(void) {
   PostMessage(hwnd, WM_TRAY_CALLBACK_MESSAGE, 0, WM_RBUTTONUP);
+}
+
+void tray_simulate_notification_click(void) {
+  // Windows handles notification clicks via NIN_BALLOONUSERCLICK in the window proc.
+  // Simulating this from outside the message pump is not supported here.
+}
+
+void tray_simulate_menu_item_click(int index) {
+  // Programmatic menu-item simulation is not supported here.
+  (void) index;
+}
+
+void tray_set_log_callback(void (*cb)(int level, const char *msg)) {
+  // Qt is not used on Windows; log routing is not applicable.
+  (void) cb;
+}
+
+void tray_set_app_info(const char *app_name, const char *app_display_name, const char *desktop_name) {
+  // Application metadata is not applicable on Windows.
+  (void) app_name;
+  (void) app_display_name;
+  (void) desktop_name;
 }
 
 void tray_exit(void) {

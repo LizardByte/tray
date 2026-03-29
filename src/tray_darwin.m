@@ -130,6 +130,28 @@ void tray_show_menu(void) {
   [statusItem popUpStatusItemMenu:statusItem.menu];
 }
 
+void tray_simulate_notification_click(void) {
+  // macOS notification clicks are handled by the OS notification center.
+  // Simulation is not supported here.
+}
+
+void tray_simulate_menu_item_click(int index) {
+  // Programmatic menu-item simulation is not supported here.
+  (void) index;
+}
+
+void tray_set_log_callback(void (*cb)(int level, const char *msg)) {
+  // Qt is not used on macOS; log routing is not applicable.
+  (void) cb;
+}
+
+void tray_set_app_info(const char *app_name, const char *app_display_name, const char *desktop_name) {
+  // Application metadata is not applicable on macOS.
+  (void) app_name;
+  (void) app_display_name;
+  (void) desktop_name;
+}
+
 void tray_exit(void) {
   // Remove the status item from the status bar on the main thread
   // NSStatusBar operations must be performed on the main thread
