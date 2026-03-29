@@ -13,6 +13,7 @@
 // clang-format off
 // build fails if shellapi.h is included before Windows.h
 #include <shellapi.h>
+#include <stdlib.h>
 // clang-format on
 
 // local includes
