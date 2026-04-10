@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set Commit Status (In Progress)
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8.0.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
         env:
           WORKFLOW_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         with:
@@ -295,7 +295,7 @@ jobs:
 
       - name: Set Commit Status (Complete)
         if: always()
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8.0.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
         env:
           JOB_STATUS: ${{ job.status }}
           WORKFLOW_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
