@@ -87,7 +87,10 @@ else()
                     CACHE INTERNAL "Qt major version selected by tray"
             )
             set(CMAKE_AUTOMOC ON)
-            list(APPEND TRAY_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/tray_linux.cpp")
+            list(APPEND TRAY_SOURCES
+                    "${CMAKE_CURRENT_SOURCE_DIR}/src/tray_linux.cpp"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/src/QtTrayMenu.cpp"
+            )
         endif()
     endif()
 endif()
