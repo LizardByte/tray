@@ -7,36 +7,45 @@
 #include <QObject>
 #include <QSystemTrayIcon>
 
-class QtTrayMenu : public QObject
-        {
-            Q_OBJECT
+/**
+ * @brief Wrapper class for platfrom-independent Qt-based tray menu.
+ */
+class QtTrayMenu: public QObject {
+  Q_OBJECT
 
-            public:
-                QtTrayMenu();
-                ~QtTrayMenu();
-                virtual bool eventFilter(QObject *watched, QEvent *event) override;
-                int init(struct tray *tray);
-                void update(struct tray *tray);
-                int loop(int blocking);
-                void exit();
+public:
+  explicit QtTrayMenu(QObject *parent = nullptr);
+  explicit QtTrayMenu(int argc, char **argv, bool debug, QObject *parent = nullptr);
+  ~QtTrayMenu() override;
+  bool eventFilter(QObject *watched, QEvent *event) override;
+  int init(struct tray *tray);
+  void update(struct tray *tray);
+  int loop(int blocking) const;
+  void exit();
+  void configureAppMetadata(const QString &appName, const QString &appDisplayName, const QString &desktopName) const;
+  void showMenu() const;
+  void showMessage(const QString &title, const QString &msg, QSystemTrayIcon::MessageIcon icon = QSystemTrayIcon::Information, int msecs = 10000) const;
+  void showMessage(const QString &title, const QString &msg, const QIcon &icon, int msecs = 10000) const;
+  void clickMenuItem(int index) const;
+  void clickMessage() const;
 
-            private:
-                void createMenu(struct tray_menu *items, QMenu *menu);
-                void onTrayActivated(QSystemTrayIcon::ActivationReason reason);
-                void onMenuItemTriggered();
-                QApplication *app;
-                QSystemTrayIcon *trayIcon;
-                struct tray *trayStruct;
-                bool continueRunning;
-                struct tray_menu *getTrayMenuItem(QAction *action);
+private:
+  void createMenu(struct tray_menu *items, QMenu *menu);
+  void createNotification() const;
+  QApplication *app;
+  QSystemTrayIcon *trayIcon;
+  QMenu *trayTopMenu;
+  struct tray *trayStruct;
+  bool continueRunning;
+  struct tray_menu *getTrayMenuItem(QAction *action);
 
-            signals:
-                void exitRequested();
+signals:
+  void exitRequested();
 
-            private slots:
-                void onExitRequested();
-
+private slots:
+  void onExitRequested() const;
+  void onTrayActivated(QSystemTrayIcon::ActivationReason reason);
+  void onMessageClicked() const;
+  void onMenuItemTriggered();
 };
-
-
-#endif // TRAYMENU_H
+#endif  // TRAYMENU_H
