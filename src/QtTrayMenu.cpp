@@ -31,18 +31,14 @@ QtTrayMenu::QtTrayMenu(int argc, char **argv, const bool debug, QObject *parent)
 }
 
 QtTrayMenu::~QtTrayMenu() {
-  // Delete app only if it was created within this class
+  // Quit QApplication
+  QApplication::quit();
+  // Cleanup app only if it was created within this class
   if (app && app != QApplication::instance()) {
+    // Delete app and clear references
     delete app;  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
     app = nullptr;  // Set to nullptr after deletion
   }
-
-  // Remove custom references in correct order after app deletion to prevent SEGV
-  delete trayIcon;  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
-  trayIcon = nullptr;  // Set to nullptr after deletion
-
-  delete trayTopMenu;  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
-  trayTopMenu = nullptr;  // Set to nullptr after deletion
 }
 
 int QtTrayMenu::init(struct tray *tray) {
@@ -61,7 +57,6 @@ int QtTrayMenu::init(struct tray *tray) {
   trayIcon = new QSystemTrayIcon(QIcon(tray->icon), this);
   trayIcon->setToolTip(QString::fromUtf8(tray->tooltip));
 
-  connect(this, &QtTrayMenu::exitRequested, this, &QtTrayMenu::onExitRequested);
   connect(trayIcon, &QSystemTrayIcon::activated, this, &QtTrayMenu::onTrayActivated);
   connect(trayIcon, &QSystemTrayIcon::messageClicked, this, &QtTrayMenu::onMessageClicked);
 
@@ -77,16 +72,15 @@ int QtTrayMenu::init(struct tray *tray) {
 }
 
 void QtTrayMenu::update(struct tray *tray) {
-  this->trayStruct = tray;
-  if (trayIcon) {
-    if (const auto newIcon = QIcon(tray->icon); !newIcon.isNull()) {
-      trayIcon->setIcon(newIcon);
-    }
-    trayIcon->setToolTip(QString::fromUtf8(tray->tooltip));
-  }
-  if (trayIcon == nullptr) {
+  if (!trayIcon) {
     return;
   }
+  this->trayStruct = tray;
+  if (const auto newIcon = QIcon(tray->icon); !newIcon.isNull()) {
+    trayIcon->setIcon(newIcon);
+  }
+  trayIcon->setToolTip(QString::fromUtf8(tray->tooltip));
+
   if (auto *existingMenu = trayIcon->contextMenu()) {
     existingMenu->clear();  // Remove all actions
     createMenu(tray->menu, existingMenu);
@@ -113,7 +107,23 @@ int QtTrayMenu::loop(int blocking) const {
 
 void QtTrayMenu::exit() {
   running = false;
-  emit exitRequested();
+  // Remove tray menu references
+  if (trayTopMenu) {
+    if (trayIcon) {
+      trayIcon->setContextMenu(nullptr);
+    }
+    delete trayTopMenu;  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
+    trayTopMenu = nullptr;  // Set to nullptr after deletion
+  }
+  // Remove tray icon references;
+  if (trayIcon) {
+    trayIcon->hide();
+    delete trayIcon;  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
+    trayIcon = nullptr;  // Set to nullptr after deletion
+  }
+
+  // Unset tray structure
+  trayStruct = nullptr;
 }
 
 void QtTrayMenu::createMenu(struct tray_menu *items, QMenu *menu) {
@@ -139,7 +149,7 @@ void QtTrayMenu::createMenu(struct tray_menu *items, QMenu *menu) {
 }
 
 void QtTrayMenu::createNotification() const {
-  if (trayStruct->notification_title && trayStruct->notification_text) {
+  if (trayStruct && trayStruct->notification_title && trayStruct->notification_text) {
     const auto title = QString::fromUtf8(trayStruct->notification_title);
     const auto text = QString::fromUtf8(trayStruct->notification_text);
     if (trayStruct->notification_icon) {
@@ -159,7 +169,7 @@ void QtTrayMenu::onTrayActivated(QSystemTrayIcon::ActivationReason reason) {
   if (reason != QSystemTrayIcon::Trigger) {
     return;
   }
-  if (trayStruct->cb) {
+  if (trayStruct && trayStruct->cb) {
     trayStruct->cb(trayStruct);
   } else {
     showMenu();
@@ -179,12 +189,8 @@ struct tray_menu *QtTrayMenu::getTrayMenuItem(QAction *action) {  // NOSONAR(cpp
   return static_cast<struct tray_menu *>(action->property("tray_menu_item").value<void *>());
 }
 
-void QtTrayMenu::onExitRequested() const {
-  QApplication::quit();
-}
-
 void QtTrayMenu::onMessageClicked() const {
-  if (trayStruct->notification_cb) {
+  if (trayStruct && trayStruct->notification_cb) {
     trayStruct->notification_cb();
   }
 }
@@ -200,7 +206,7 @@ void QtTrayMenu::configureAppMetadata(const QString &appName, const QString &app
       QApplication::setApplicationDisplayName(appDisplayName);
     } else {
       const QString display_name =
-        (trayStruct != nullptr && trayStruct->tooltip != nullptr) ? QString::fromUtf8(trayStruct->tooltip) : effective_name;
+        (trayStruct && trayStruct->tooltip) ? QString::fromUtf8(trayStruct->tooltip) : effective_name;
       QApplication::setApplicationDisplayName(display_name);
     }
   }
@@ -222,6 +228,9 @@ void QtTrayMenu::configureAppMetadata(const QString &appName, const QString &app
 }
 
 void QtTrayMenu::showMenu() const {
+  if (!trayIcon) {
+    return;
+  }
   if (QMenu *menu = trayIcon->contextMenu(); menu != nullptr) {
     // Due to QTBUG-139921 this is currently not working on Linux/Wayland
     // with Qt-6.9+ unless menu has a transient parent (which we do not have here).
@@ -230,29 +239,41 @@ void QtTrayMenu::showMenu() const {
 }
 
 void QtTrayMenu::showMessage(const QString &title, const QString &msg, const QSystemTrayIcon::MessageIcon icon, const int msecs) const {
+  if (!trayIcon) {
+    return;
+  }
   trayIcon->showMessage(title, msg, icon, msecs);
 }
 
 void QtTrayMenu::showMessage(const QString &title, const QString &msg, const QIcon &icon, const int msecs) const {
+  if (!trayIcon) {
+    return;
+  }
   trayIcon->showMessage(title, msg, icon, msecs);
 }
 
 void QtTrayMenu::clickMenuItem(int index) const {
+  if (!trayIcon) {
+    return;
+  }
   const QMenu *menu = trayIcon->contextMenu();
-  if (menu == nullptr) {
+  if (!menu) {
     return;
   }
   const QList<QAction *> actions = menu->actions();
-  if (index >= actions.size()) {
+  if (index < 0 || index >= actions.size()) {
     return;
   }
   QAction *action = actions.at(index);
-  if (action == nullptr || action->isSeparator() || action->menu() != nullptr || !action->isEnabled()) {
+  if (!action || action->isSeparator() || action->menu() != nullptr || !action->isEnabled()) {
     return;
   }
   action->trigger();
 }
 
 void QtTrayMenu::clickMessage() const {
+  if (!trayIcon) {
+    return;
+  }
   emit trayIcon->messageClicked();
 }
