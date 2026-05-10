@@ -116,14 +116,7 @@ private:
   bool running = false;
   struct tray_menu *getTrayMenuItem(QAction *action);
 
-signals:
-  /**
-   * @brief Signal emitted when exiting the tray
-   */
-  void exitRequested();
-
 private slots:
-  void onExitRequested() const;
   void onTrayActivated(QSystemTrayIcon::ActivationReason reason);
   void onMessageClicked() const;
   void onMenuItemTriggered();
