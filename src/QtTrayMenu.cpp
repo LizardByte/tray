@@ -9,11 +9,7 @@ QtTrayMenu::QtTrayMenu(QObject *parent):
     };
 
 QtTrayMenu::QtTrayMenu(int argc, char **argv, const bool debug, QObject *parent):
-    QObject(parent),
-    app(nullptr),
-    trayIcon(nullptr),
-    trayStruct(nullptr),
-    continueRunning(true) {
+    QObject(parent) {
   if (QApplication::instance()) {
     app = dynamic_cast<QApplication *>(QApplication::instance());
     if (!app) {
@@ -56,6 +52,7 @@ int QtTrayMenu::init(struct tray *tray) {
   }
 
   this->trayStruct = tray;
+  this->running = true;
 
   if (QApplication::applicationName().isEmpty() || QApplication::applicationName() == "TrayMenuApp") {
     QApplication::setApplicationName(tray->tooltip);
@@ -98,7 +95,7 @@ void QtTrayMenu::update(struct tray *tray) {
 }
 
 int QtTrayMenu::loop(int blocking) const {
-  if (!continueRunning) {
+  if (!running) {
     return -1;
   }
   if (!app || QApplication::closingDown()) {
@@ -115,7 +112,7 @@ int QtTrayMenu::loop(int blocking) const {
 }
 
 void QtTrayMenu::exit() {
-  continueRunning = false;
+  running = false;
   emit exitRequested();
 }
 
