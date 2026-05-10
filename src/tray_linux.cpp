@@ -50,6 +50,9 @@ namespace {
 
 extern "C" {
   void tray_set_app_info(const char *app_name, const char *app_display_name, const char *desktop_name) {
+    if (qt_tray_menu == nullptr) {
+      return;
+    }
     const auto app_name_ = app_name != nullptr ? QString::fromUtf8(app_name) : QString();
     const auto app_display_name_ = app_display_name != nullptr ? QString::fromUtf8(app_display_name) : QString();
     const auto desktop_name_ = desktop_name != nullptr ? QString::fromUtf8(desktop_name) : QString();
@@ -64,17 +67,24 @@ extern "C" {
   }
 
   int tray_loop(int blocking) {
+    if (qt_tray_menu == nullptr) {
+      return -1;
+    }
     return qt_tray_menu->loop(blocking);
   }
 
   void tray_update(struct tray *tray) {  // NOSONAR(cpp:S995) - C API requires this exact mutable-pointer signature
+    if (qt_tray_menu == nullptr) {
+      return;
+    }
     qt_tray_menu->update(tray);
   }
 
   void tray_exit(void) {
+    if (qt_tray_menu == nullptr) {
+      return;
+    }
     qt_tray_menu->exit();
-    qt_tray_menu.reset();
-    qt_tray_menu = nullptr;
   }
 
   void tray_set_log_callback(void (*cb)(int level, const char *msg)) {  // NOSONAR(cpp:S5205) - C API requires a plain function pointer callback type
@@ -87,14 +97,23 @@ extern "C" {
   }
 
   void tray_show_menu(void) {
+    if (qt_tray_menu == nullptr) {
+      return;
+    }
     qt_tray_menu->showMenu();
   }
 
   void tray_simulate_menu_item_click(int index) {
+    if (qt_tray_menu == nullptr) {
+      return;
+    }
     qt_tray_menu->clickMenuItem(index);
   }
 
   void tray_simulate_notification_click(void) {
+    if (qt_tray_menu == nullptr) {
+      return;
+    }
     qt_tray_menu->clickMessage();
   }
 }  // extern "C"
