@@ -109,11 +109,11 @@ public:
 private:
   void createMenu(struct tray_menu *items, QMenu *menu);
   void createNotification() const;
-  QApplication *app;
-  QSystemTrayIcon *trayIcon;
-  QMenu *trayTopMenu;
-  struct tray *trayStruct;
-  bool continueRunning;
+  QApplication *app = nullptr;
+  QSystemTrayIcon *trayIcon = nullptr;
+  QMenu *trayTopMenu = nullptr;
+  struct tray *trayStruct = nullptr;
+  bool running = false;
   struct tray_menu *getTrayMenuItem(QAction *action);
 
 signals:
