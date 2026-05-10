@@ -52,9 +52,6 @@ static void submenu_cb(struct tray_menu *item) {
 static struct tray tray = {
   .icon = TRAY_ICON1,
   .tooltip = "Tray",
-  .notification_title = "Title",
-  .notification_text = "Text",
-  .notification_icon = TRAY_ICON1,
   .menu =
     (struct tray_menu[]) {
       {.text = "Hello", .cb = hello_cb},
