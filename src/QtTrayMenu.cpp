@@ -7,8 +7,8 @@
 
 namespace {
   int defaultArgc = 1;  // NOSONAR(cpp:S5421): This is required for QApplication's argc/argv constructor
-  char defaultArgv0[] = "TrayMenuApp"; // NOSONAR(cpp:S5421): This is required for QApplication's argc/argv constructor
-  char *defaultArgv[] = {defaultArgv0, nullptr}; // NOSONAR(cpp:S5421,cpp:S5954): This is required for QApplication's argc/argv constructor
+  char defaultArgv0[] = "TrayMenuApp";  // NOSONAR(cpp:S5421): This is required for QApplication's argc/argv constructor
+  char *defaultArgv[] = {defaultArgv0, nullptr};  // NOSONAR(cpp:S5421,cpp:S5954): This is required for QApplication's argc/argv constructor
 }  // namespace
 
 QtTrayMenu::QtTrayMenu(QObject *parent, const bool debug):
@@ -47,7 +47,7 @@ QtTrayMenu::~QtTrayMenu() {
   }
 }
 
-int QtTrayMenu::init(struct tray *tray) {
+int QtTrayMenu::init(struct tray *tray, const bool notification) {
   if (trayIcon) {
     // Running tray is initialized again. Fail with error.
     return -1;
@@ -72,12 +72,14 @@ int QtTrayMenu::init(struct tray *tray) {
   trayIcon->setContextMenu(trayTopMenu);
   trayIcon->show();
 
-  createNotification();
+  if (notification) {
+    createNotification();
+  }
 
   return 0;
 }
 
-void QtTrayMenu::update(struct tray *tray) {
+void QtTrayMenu::update(struct tray *tray, const bool notification) {
   if (!trayIcon) {
     return;
   }
@@ -91,7 +93,9 @@ void QtTrayMenu::update(struct tray *tray) {
     existingMenu->clear();  // Remove all actions
     createMenu(tray->menu, existingMenu);
   }
-  createNotification();
+  if (notification) {
+    createNotification();
+  }
 }
 
 int QtTrayMenu::loop(int blocking) const {
