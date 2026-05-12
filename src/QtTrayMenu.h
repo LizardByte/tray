@@ -43,15 +43,17 @@ public:
   /**
    * @brief Initialize tray with given structure
    * @param tray struct containing tray configuration
+   * @param notification fire tray notification if true
    * @return 0 on success
    */
-  int init(struct tray *tray);
+  int init(struct tray *tray, bool notification = true);
 
   /**
    * @brief Update tray configuration
    * @param tray struct containing tray configuration
+   * @param notification fire tray notification if true
    */
-  void update(struct tray *tray);
+  void update(struct tray *tray, bool notification = true);
 
   /**
    * @brief Process tray loop events
