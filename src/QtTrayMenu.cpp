@@ -111,6 +111,7 @@ void QtTrayMenu::exit() {
   if (trayTopMenu) {
     if (trayIcon) {
       trayIcon->setContextMenu(nullptr);
+      QApplication::processEvents();
     }
     delete trayTopMenu;  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
     trayTopMenu = nullptr;  // Set to nullptr after deletion
@@ -118,6 +119,7 @@ void QtTrayMenu::exit() {
   // Remove tray icon references;
   if (trayIcon) {
     trayIcon->hide();
+    QApplication::processEvents();
     delete trayIcon;  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
     trayIcon = nullptr;  // Set to nullptr after deletion
   }
