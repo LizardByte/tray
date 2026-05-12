@@ -3,6 +3,7 @@
 
 // standard includes
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstring>
 #include <thread>
@@ -97,8 +98,8 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F generates subclasses that need access
     trayRunning = false;
   }
 
-  // Dismisses the open menu and exits the tray event loop from a background thread.
-  void closeMenuAndExit() {
+  // Dismisses the open menu from a background thread.
+  void closeMenu() {
 #if defined(TRAY_WINAPI)
     PostMessage(tray_get_hwnd(), WM_CANCELMODE, 0, 0);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -111,18 +112,22 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F generates subclasses that need access
     CFRelease(event2);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 #endif
-    tray_exit();
   }
 
   // Capture a screenshot while the tray menu is open, then dismiss and exit.
   void captureMenuStateAndExit(const char *screenshotName) {
-    std::thread capture_thread([this, screenshotName]() {  // NOSONAR(cpp:S6168) - std::jthread is unavailable on AppleClang 17/libc++ used in CI
+    std::atomic_bool exitRequested {false};
+    std::thread capture_thread([this, screenshotName, &exitRequested]() {  // NOSONAR(cpp:S6168) - std::jthread is unavailable on AppleClang 17/libc++ used in CI
       EXPECT_TRUE(captureScreenshot(screenshotName));
-      closeMenuAndExit();
+      closeMenu();
+      exitRequested.store(true, std::memory_order_release);
     });
 
     tray_show_menu();
     while (tray_loop(0) == 0) {
+      if (exitRequested.load(std::memory_order_acquire)) {
+        tray_exit();
+      }
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     capture_thread.join();
