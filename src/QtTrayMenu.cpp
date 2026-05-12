@@ -37,10 +37,10 @@ QtTrayMenu::QtTrayMenu(int argc, char **argv, const bool debug, QObject *parent)
 }
 
 QtTrayMenu::~QtTrayMenu() {
-  // Quit QApplication
-  QApplication::quit();
   // Cleanup app only if it was created within this class
   if (app && app != QApplication::instance()) {
+    // Quit QApplication
+    QApplication::quit();
     // Delete app and clear references
     delete app;  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
     app = nullptr;  // Set to nullptr after deletion
