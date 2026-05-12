@@ -17,17 +17,18 @@ public:
   /**
    * @brief Create a QtTrayMenu instance
    * @param parent optional parent Qt object
+   * @param debug if true isntall eventFilter for debug logging
    */
-  explicit QtTrayMenu(QObject *parent = nullptr);
+  explicit QtTrayMenu(QObject *parent = nullptr, bool debug = false);
 
   /**
    * @brief Create a QtTrayMenu instance
    * @param argc argument count for QApplication (if that needs to be created)
    * @param argv argument list for QApplication (if that needs to be created)
-   * @param debug if true isntall eventFilter for debug logging
    * @param parent optional parent Qt object
+   * @param debug if true isntall eventFilter for debug logging
    */
-  explicit QtTrayMenu(int argc, char **argv, bool debug, QObject *parent = nullptr);
+  explicit QtTrayMenu(int argc, char **argv, QObject *parent = nullptr, bool debug = false);
 
   ~QtTrayMenu() override;
   /**

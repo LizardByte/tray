@@ -6,16 +6,16 @@
 #include <QMouseEvent>
 
 namespace {
-  int defaultArgc = 1;
-  char defaultArgv0[] = "TrayMenuApp";
-  char *defaultArgv[] = {defaultArgv0, nullptr};
+  int defaultArgc = 1;  // NOSONAR(cpp:S5421): This is required for QApplication's argc/argv constructor
+  char defaultArgv0[] = "TrayMenuApp"; // NOSONAR(cpp:S5421): This is required for QApplication's argc/argv constructor
+  char *defaultArgv[] = {defaultArgv0, nullptr}; // NOSONAR(cpp:S5421,cpp:S5954): This is required for QApplication's argc/argv constructor
 }  // namespace
 
-QtTrayMenu::QtTrayMenu(QObject *parent):
-    QtTrayMenu(-1, nullptr, false, parent) {
+QtTrayMenu::QtTrayMenu(QObject *parent, const bool debug):
+    QtTrayMenu(-1, nullptr, parent, debug) {
     };
 
-QtTrayMenu::QtTrayMenu(int argc, char **argv, const bool debug, QObject *parent):
+QtTrayMenu::QtTrayMenu(int argc, char **argv, QObject *parent, const bool debug):
     QObject(parent) {
   if (QApplication::instance()) {
     app = dynamic_cast<QApplication *>(QApplication::instance());
