@@ -1,8 +1,15 @@
 #include "QtTrayMenu.h"
 
 #include <QApplication>
+#include <QCursor>
 #include <QDebug>
 #include <QMouseEvent>
+
+namespace {
+  int defaultArgc = 1;
+  char defaultArgv0[] = "TrayMenuApp";
+  char *defaultArgv[] = {defaultArgv0, nullptr};
+}  // namespace
 
 QtTrayMenu::QtTrayMenu(QObject *parent):
     QtTrayMenu(-1, nullptr, false, parent) {
@@ -19,11 +26,10 @@ QtTrayMenu::QtTrayMenu(int argc, char **argv, const bool debug, QObject *parent)
     // Note: The following is ugly but QApplication requires an argv containing the application name.
     // We might not have access to the real argc/argv here due to being called/pulled as a dependency.
     if (argc < 0 && argv == nullptr) {
-      argc = 1;
-      char *argvArray[] = {(char *) "TrayMenuApp", nullptr};
-      argv = &argvArray[0];
+      app = new QApplication(defaultArgc, defaultArgv);  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
+    } else {
+      app = new QApplication(argc, argv);  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
     }
-    app = new QApplication(argc, argv);  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
   }
   if (debug) {
     app->installEventFilter(this);
@@ -109,6 +115,7 @@ void QtTrayMenu::exit() {
   running = false;
   // Remove tray menu references
   if (trayTopMenu) {
+    trayTopMenu->hide();
     if (trayIcon) {
       trayIcon->setContextMenu(nullptr);
       QApplication::processEvents();
@@ -236,7 +243,7 @@ void QtTrayMenu::showMenu() const {
   if (QMenu *menu = trayIcon->contextMenu(); menu != nullptr) {
     // Due to QTBUG-139921 this is currently not working on Linux/Wayland
     // with Qt-6.9+ unless menu has a transient parent (which we do not have here).
-    menu->show();
+    menu->popup(QCursor::pos());
   }
 }
 
