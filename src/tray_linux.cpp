@@ -33,21 +33,9 @@ namespace tray_linux {
    * @brief Initialize notifications
    */
   void init_notify() {
-    std::scoped_lock lock(notificationMutex);
     if (!notify_is_initted()) {
+      std::scoped_lock lock(notificationMutex);
       notify_init("tray");
-    }
-  }
-
-  /**
-   * @brief Uninitialize notifications
-   */
-  void uninit_notify() {
-    std::scoped_lock lock(notificationMutex);
-    if (notify_is_initted()) {
-      notify_uninit();
-      notificationCurrent = nullptr;
-      notificationCurrentCallback = nullptr;
     }
   }
 
@@ -68,15 +56,17 @@ namespace tray_linux {
    * @return true if notified successfully, false otherwise
    */
   void notify(struct tray *tray) {
-    std::scoped_lock lock(notificationMutex);
-    if (tray->notification_text == nullptr || std::string(tray->notification_text).length() == 0) {
+    if (tray->notification_text == nullptr || std::string(tray->notification_text).empty()) {
       return;
     }
     // Try to notify using libnotify
     if (notify_is_initted()) {
+      std::scoped_lock lock(notificationMutex);
       if (notificationCurrent != nullptr && NOTIFY_IS_NOTIFICATION(notificationCurrent)) {
         notify_notification_close(notificationCurrent, nullptr);
         g_object_unref(G_OBJECT(notificationCurrent));
+        notificationCurrent = nullptr;
+        notificationCurrentCallback = nullptr;
       }
       const char *notification_icon = tray->notification_icon != nullptr ? tray->notification_icon : tray->icon;
       notificationCurrent = notify_notification_new(tray->notification_title, tray->notification_text, notification_icon);
@@ -99,19 +89,31 @@ namespace tray_linux {
   /**
    * @brief Acknowledge/click current notification
    */
-  void notify_acknowledge() {
-    std::scoped_lock lock(notificationMutex);
+  void notify_acknowledge(bool run_callback = false) {
     if (notify_is_initted()) {
+      std::scoped_lock lock(notificationMutex);
       if (notificationCurrent != nullptr && NOTIFY_IS_NOTIFICATION(notificationCurrent)) {
-        if (notificationCurrentCallback != nullptr) {
+        if (run_callback && notificationCurrentCallback != nullptr) {
           notificationCurrentCallback();
-          notificationCurrentCallback = nullptr;
         }
         notify_notification_close(notificationCurrent, nullptr);
         g_object_unref(G_OBJECT(notificationCurrent));
+        notificationCurrent = nullptr;
+        notificationCurrentCallback = nullptr;
       }
     } else if (qt_tray_menu != nullptr) {
       qt_tray_menu->clickMessage();
+    }
+  }
+
+  /**
+   * @brief Uninitialize notifications
+   */
+  void uninit_notify() {
+    if (notify_is_initted()) {
+      notify_acknowledge();
+      std::scoped_lock lock(notificationMutex);
+      notify_uninit();
     }
   }
 
@@ -220,9 +222,6 @@ extern "C" {
   }
 
   void tray_simulate_notification_click(void) {
-    if (tray_linux::qt_tray_menu == nullptr) {
-      return;
-    }
-    tray_linux::notify_acknowledge();
+    tray_linux::notify_acknowledge(true);
   }
 }  // extern "C"
