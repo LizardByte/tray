@@ -20,6 +20,7 @@
 // Qt includes
 #include "QtTrayMenu.h"
 
+#include <filesystem>
 #include <QString>
 
 namespace tray_linux {
@@ -86,8 +87,12 @@ namespace tray_linux {
         acknowledge_notification();
       }
       std::scoped_lock lock(notificationMutex);
-      const char *notification_icon = tray->notification_icon != nullptr ? tray->notification_icon : tray->icon;
-      notificationCurrent = notify_notification_new(tray->notification_title, tray->notification_text, notification_icon);
+      std::filesystem::path notification_icon = tray->notification_icon != nullptr ? tray->notification_icon : tray->icon;
+      if (std::filesystem::exists(notification_icon)) {
+        // Use absolute path for filesystem icon files, not a relative one
+        notification_icon = std::filesystem::absolute(notification_icon);
+      }
+      notificationCurrent = notify_notification_new(tray->notification_title, tray->notification_text, notification_icon.c_str());
       if (notificationCurrent != nullptr && NOTIFY_IS_NOTIFICATION(notificationCurrent)) {
         if (tray->notification_cb != nullptr) {
           notificationCurrentCallback = tray->notification_cb;
