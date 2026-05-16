@@ -161,14 +161,14 @@ void QtTrayMenu::createMenu(struct tray_menu *items, QMenu *menu) {
   }
 }
 
-void QtTrayMenu::createNotification() const {
+void QtTrayMenu::createNotification() {
   if (trayStruct && trayStruct->notification_title && trayStruct->notification_text) {
     const auto title = QString::fromUtf8(trayStruct->notification_title);
     const auto text = QString::fromUtf8(trayStruct->notification_text);
     if (trayStruct->notification_icon) {
-      showMessage(title, text, QIcon(trayStruct->notification_icon));
+      showMessage(title, text, trayStruct->notification_icon, trayStruct->notification_cb);
     } else {
-      showMessage(title, text);
+      showMessage(title, text, trayStruct->notification_cb);
     }
   }
 }
@@ -203,8 +203,8 @@ struct tray_menu *QtTrayMenu::getTrayMenuItem(QAction *action) {  // NOSONAR(cpp
 }
 
 void QtTrayMenu::onMessageClicked() const {
-  if (trayStruct && trayStruct->notification_cb) {
-    trayStruct->notification_cb();
+  if (notificationCallback != nullptr) {
+    notificationCallback();
   }
 }
 
@@ -251,18 +251,24 @@ void QtTrayMenu::showMenu() const {
   }
 }
 
-void QtTrayMenu::showMessage(const QString &title, const QString &msg, const QSystemTrayIcon::MessageIcon icon, const int msecs) const {
+void QtTrayMenu::showMessage(const QString &title, const QString &msg, std::function<void()> callback, const QSystemTrayIcon::MessageIcon icon, const int msecs) {
   if (!trayIcon) {
     return;
   }
-  trayIcon->showMessage(title, msg, icon, msecs);
+  if (QSystemTrayIcon::supportsMessages()) {
+    notificationCallback = std::move(callback);
+    trayIcon->showMessage(title, msg, icon, msecs);
+  }
 }
 
-void QtTrayMenu::showMessage(const QString &title, const QString &msg, const QIcon &icon, const int msecs) const {
+void QtTrayMenu::showMessage(const QString &title, const QString &msg, const QString &iconPath, std::function<void()> callback, const int msecs) {
   if (!trayIcon) {
     return;
   }
-  trayIcon->showMessage(title, msg, icon, msecs);
+  if (QSystemTrayIcon::supportsMessages()) {
+    notificationCallback = std::move(callback);
+    trayIcon->showMessage(title, msg, QIcon(iconPath), msecs);
+  }
 }
 
 void QtTrayMenu::clickMenuItem(int index) const {

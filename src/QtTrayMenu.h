@@ -84,19 +84,21 @@ public:
    * @brief Show tray message popup
    * @param title popup title
    * @param msg popup message
+   * @param callback tray message callback function
    * @param icon popup icon
    * @param msecs popup display duration
    */
-  void showMessage(const QString &title, const QString &msg, QSystemTrayIcon::MessageIcon icon = QSystemTrayIcon::Information, int msecs = 10000) const;
+  void showMessage(const QString &title, const QString &msg, std::function<void()> callback = nullptr, QSystemTrayIcon::MessageIcon icon = QSystemTrayIcon::Information, int msecs = 10000);
 
   /**
    * @brief Show tray message popup
    * @param title popup title
    * @param msg popup message
-   * @param icon popup icon
+   * @param callback tray message callback function
+   * @param iconPath popup icon file path
    * @param msecs popup display duration
    */
-  void showMessage(const QString &title, const QString &msg, const QIcon &icon, int msecs = 10000) const;
+  void showMessage(const QString &title, const QString &msg, const QString &iconPath, std::function<void()> callback = nullptr, int msecs = 10000);
 
   /**
    * @brief Simulate click on menu item
@@ -111,13 +113,14 @@ public:
 
 private:
   void createMenu(struct tray_menu *items, QMenu *menu);
-  void createNotification() const;
+  void createNotification();
   QApplication *app = nullptr;
   QSystemTrayIcon *trayIcon = nullptr;
   QMenu *trayTopMenu = nullptr;
   struct tray *trayStruct = nullptr;
   bool running = false;
   struct tray_menu *getTrayMenuItem(QAction *action);
+  std::function<void()> notificationCallback = nullptr;
 
 private slots:
   void onTrayActivated(QSystemTrayIcon::ActivationReason reason);
