@@ -72,36 +72,83 @@ jobs:
 
       - name: Determine Context
         id: context
-        env:
-          WORKFLOW_EVENT: ${{ github.event.workflow_run.event }}
-          WORKFLOW_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
-        run: |
-          event_name="${WORKFLOW_EVENT}"
-          head_branch="${WORKFLOW_HEAD_BRANCH}"
-          pr_number="$(jq -r '.workflow_run.pull_requests[0].number // empty' "${GITHUB_EVENT_PATH}")"
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const eventName = run.event || '';
+            const headBranch = run.head_branch || '';
+            const headRepository = run.head_repository || {};
+            const headRepositoryName = headRepository.full_name || '';
 
-          if [ -n "${pr_number}" ] && ! [[ "${pr_number}" =~ ^[0-9]+$ ]]; then
-            echo "Invalid pr_number value: ${pr_number}"
-            exit 1
-          fi
+            function normalizePrNumber(value) {
+              if (value === undefined || value === null || value === '') {
+                return '';
+              }
 
-          is_pr=false
-          if [ "${event_name}" = "pull_request" ] && [ -n "${pr_number}" ]; then
-            is_pr=true
-          fi
+              const prNumber = String(value);
+              if (!/^\d+$/.test(prNumber)) {
+                throw new Error(`Invalid PR number value: ${prNumber}`);
+              }
 
-          is_master_push=false
-          if [ "${event_name}" = "push" ] && [ "${head_branch}" = "master" ]; then
-            is_master_push=true
-          fi
+              return prNumber;
+            }
 
-          {
-            echo "event_name=${event_name}"
-            echo "head_branch=${head_branch}"
-            echo "is_pr=${is_pr}"
-            echo "pr_number=${pr_number}"
-            echo "is_master_push=${is_master_push}"
-          } >> "${GITHUB_OUTPUT}"
+            let prNumber = '';
+            if (eventName === 'pull_request') {
+              prNumber = normalizePrNumber(run.pull_requests?.[0]?.number);
+
+              if (!prNumber) {
+                const headOwner = headRepository.owner?.login
+                  || headRepository.owner?.name
+                  || headRepositoryName.split('/')[0]
+                  || '';
+                const head = headOwner && headBranch ? `${headOwner}:${headBranch}` : '';
+
+                if (head) {
+                  core.info(`workflow_run.pull_requests is empty; resolving PR from head ${head}.`);
+                  const pullRequests = await github.paginate(github.rest.pulls.list, {
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    state: 'open',
+                    head,
+                    sort: 'updated',
+                    direction: 'desc',
+                    per_page: 100,
+                  });
+                  const baseRepository = `${context.repo.owner}/${context.repo.repo}`;
+                  const matchingSha = pullRequests.find((pr) => pr.head?.sha === run.head_sha);
+                  const matchingBase = pullRequests.find((pr) => pr.base?.repo?.full_name === baseRepository);
+                  const pullRequest = matchingSha || matchingBase || pullRequests[0];
+                  prNumber = normalizePrNumber(pullRequest?.number);
+                }
+              }
+
+              if (!prNumber) {
+                throw new Error([
+                  'Unable to determine PR number for pull_request workflow_run.',
+                  `head_repository=${headRepositoryName || '<unknown>'}`,
+                  `head_branch=${headBranch || '<unknown>'}`,
+                  `head_sha=${run.head_sha || '<unknown>'}`,
+                  `payload_pull_requests=${run.pull_requests?.length || 0}`,
+                ].join(' '));
+              }
+            }
+
+            const isPr = eventName === 'pull_request' && prNumber !== '';
+            const isMasterPush = eventName === 'push' && headBranch === 'master';
+
+            core.setOutput('event_name', eventName);
+            core.setOutput('head_branch', headBranch);
+            core.setOutput('is_pr', String(isPr));
+            core.setOutput('pr_number', prNumber);
+            core.setOutput('is_master_push', String(isMasterPush));
+
+            core.info(`event_name=${eventName}`);
+            core.info(`head_branch=${headBranch}`);
+            core.info(`is_pr=${isPr}`);
+            core.info(`pr_number=${prNumber}`);
+            core.info(`is_master_push=${isMasterPush}`);
 
       - name: Checkout Screenshots Branch
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
