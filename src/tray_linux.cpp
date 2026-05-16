@@ -7,6 +7,8 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <mutex>
+#include <string>
 #include <utility>
 
 // local includes
@@ -20,10 +22,98 @@
 
 #include <QString>
 
-namespace {
+namespace tray_linux {
+  NotifyNotification *notificationCurrent = nullptr;  // NOSONAR(cpp:S5421) - mutable state, not const
+  void (*notificationCurrentCallback)() = nullptr;  // NOSONAR(cpp:S5421) - mutable state, not const
+  std::mutex notificationMutex;  // NOSONAR(cpp:S5421) - mutable state, not const
   std::unique_ptr<QtTrayMenu> qt_tray_menu = nullptr;  // NOSONAR(cpp:S5421) - mutable state, not const
-  void (*g_log_cb)(int, const char *) = nullptr;  // NOSONAR(cpp:S5421) - mutable state, not const
-  NotifyNotification *currentNotification = nullptr;  // NOSONAR(cpp:S5421) - mutable state, not const
+  void (*log_cb)(int, const char *) = nullptr;  // NOSONAR(cpp:S5421) - mutable state, not const
+
+  /**
+   * @brief Initialize notifications
+   */
+  void init_notify() {
+    std::scoped_lock lock(notificationMutex);
+    if (!notify_is_initted()) {
+      notify_init("tray");
+    }
+  }
+
+  /**
+   * @brief Uninitialize notifications
+   */
+  void uninit_notify() {
+    std::scoped_lock lock(notificationMutex);
+    if (notify_is_initted()) {
+      notify_uninit();
+      notificationCurrent = nullptr;
+      notificationCurrentCallback = nullptr;
+    }
+  }
+
+  /**
+   * @brief Uninitialize notifications
+   * @param app_name the current application name
+   */
+  void set_notify_app_info(const char *app_name) {
+    std::scoped_lock lock(notificationMutex);
+    if (app_name) {
+      notify_set_app_name(app_name);
+    }
+  }
+
+  /**
+   * @brief Handle tray notifications via desktop-independent interface
+   * @param tray Tray structure containing notification information
+   * @return true if notified successfully, false otherwise
+   */
+  void notify(struct tray *tray) {
+    std::scoped_lock lock(notificationMutex);
+    if (tray->notification_text == nullptr || std::string(tray->notification_text).length() == 0) {
+      return;
+    }
+    // Try to notify using libnotify
+    if (notify_is_initted()) {
+      if (notificationCurrent != nullptr && NOTIFY_IS_NOTIFICATION(notificationCurrent)) {
+        notify_notification_close(notificationCurrent, nullptr);
+        g_object_unref(G_OBJECT(notificationCurrent));
+      }
+      const char *notification_icon = tray->notification_icon != nullptr ? tray->notification_icon : tray->icon;
+      notificationCurrent = notify_notification_new(tray->notification_title, tray->notification_text, notification_icon);
+      if (notificationCurrent != nullptr && NOTIFY_IS_NOTIFICATION(notificationCurrent)) {
+        if (tray->notification_cb != nullptr) {
+          notificationCurrentCallback = tray->notification_cb;
+          notify_notification_add_action(notificationCurrent, "default", "Default", NOTIFY_ACTION_CALLBACK(tray->notification_cb), nullptr, nullptr);
+        }
+        if (notify_notification_show(notificationCurrent, nullptr)) {
+          return;
+        }
+      }
+    }
+    // Fall back to QtTrayMenu notification
+    if (qt_tray_menu != nullptr) {
+      qt_tray_menu->showMessage(tray->notification_title, tray->notification_text, tray->notification_icon, tray->notification_cb);
+    }
+  }
+
+  /**
+   * @brief Acknowledge/click current notification
+   */
+  void notify_acknowledge() {
+    std::scoped_lock lock(notificationMutex);
+    if (notify_is_initted()) {
+      if (notificationCurrent != nullptr && NOTIFY_IS_NOTIFICATION(notificationCurrent)) {
+        if (notificationCurrentCallback != nullptr) {
+          notificationCurrentCallback();
+          notificationCurrentCallback = nullptr;
+        }
+        notify_notification_close(notificationCurrent, nullptr);
+        g_object_unref(G_OBJECT(notificationCurrent));
+      }
+    } else if (qt_tray_menu != nullptr) {
+      qt_tray_menu->clickMessage();
+    }
+  }
 
   /**
    * @brief Qt message handler that forwards to the registered log callback.
@@ -31,7 +121,7 @@ namespace {
    * @param msg The message string.
    */
   void qt_message_handler(QtMsgType type, const QMessageLogContext &, const QString &msg) {
-    if (g_log_cb == nullptr) {
+    if (log_cb == nullptr) {
       return;
     }
     int level;
@@ -49,111 +139,90 @@ namespace {
         level = 3;
         break;
     }
-    g_log_cb(level, msg.toUtf8().constData());
+    log_cb(level, msg.toUtf8().constData());
   }
-
-  /**
-   * @brief Handle tray notifications via desktop-independent interface
-   * @param tray Tray structure containing notification information
-   * @return true if notified successfully, false otherwise
-   */
-  bool tray_linux_notify(struct tray *tray) {
-    if (tray->notification_text != nullptr && strlen(tray->notification_text) > 0 && notify_is_initted()) {
-      if (currentNotification != nullptr && NOTIFY_IS_NOTIFICATION(currentNotification)) {
-        notify_notification_close(currentNotification, nullptr);
-        g_object_unref(G_OBJECT(currentNotification));
-      }
-      const char *notification_icon = tray->notification_icon != nullptr ? tray->notification_icon : tray->icon;
-      currentNotification = notify_notification_new(tray->notification_title, tray->notification_text, notification_icon);
-      if (currentNotification != nullptr && NOTIFY_IS_NOTIFICATION(currentNotification)) {
-        if (tray->notification_cb != nullptr) {
-          notify_notification_add_action(currentNotification, "default", "Default", NOTIFY_ACTION_CALLBACK(tray->notification_cb), nullptr, nullptr);
-        }
-        notify_notification_show(currentNotification, nullptr);
-        return true;
-      }
-    }
-    return false;
-  }
-}  // namespace
+}  // namespace tray_linux
 
 extern "C" {
   void tray_set_app_info(const char *app_name, const char *app_display_name, const char *desktop_name) {
-    if (qt_tray_menu == nullptr) {
+    tray_linux::set_notify_app_info(app_name);
+
+    if (tray_linux::qt_tray_menu == nullptr) {
       return;
     }
     const auto app_name_ = app_name != nullptr ? QString::fromUtf8(app_name) : QString();
     const auto app_display_name_ = app_display_name != nullptr ? QString::fromUtf8(app_display_name) : QString();
     const auto desktop_name_ = desktop_name != nullptr ? QString::fromUtf8(desktop_name) : QString();
-    qt_tray_menu->configureAppMetadata(app_name_, app_display_name_, desktop_name_);
-    if (app_name) {
-      notify_set_app_name(app_name);
-    }
+    tray_linux::qt_tray_menu->configureAppMetadata(app_name_, app_display_name_, desktop_name_);
   }
 
   int tray_init(struct tray *tray) {
-    if (qt_tray_menu == nullptr) {
-      qt_tray_menu = std::make_unique<QtTrayMenu>();
+    if (tray_linux::qt_tray_menu == nullptr) {
+      tray_linux::qt_tray_menu = std::make_unique<QtTrayMenu>();
     }
-    if (!notify_is_initted()) {
-      notify_init("tray");
+
+    // Init tray menu
+    if (const auto result = tray_linux::qt_tray_menu->init(tray, false); result < 0) {
+      return result;
     }
-    const bool notified = tray_linux_notify(tray);
-    return qt_tray_menu->init(tray, !notified);
+
+    // Init notify
+    tray_linux::init_notify();
+    tray_linux::notify(tray);
+    return 0;
   }
 
   int tray_loop(int blocking) {
-    if (qt_tray_menu == nullptr) {
+    if (tray_linux::qt_tray_menu == nullptr) {
       return -1;
     }
-    return qt_tray_menu->loop(blocking);
+    return tray_linux::qt_tray_menu->loop(blocking);
   }
 
   void tray_update(struct tray *tray) {  // NOSONAR(cpp:S995) - C API requires this exact mutable-pointer signature
-    if (qt_tray_menu == nullptr) {
+    if (tray_linux::qt_tray_menu == nullptr) {
       return;
     }
-    const bool notified = tray_linux_notify(tray);
-    qt_tray_menu->update(tray, !notified);
+    tray_linux::qt_tray_menu->update(tray, false);
+    tray_linux::notify(tray);
   }
 
   void tray_exit(void) {
-    if (qt_tray_menu == nullptr) {
+    tray_linux::uninit_notify();
+
+    if (tray_linux::qt_tray_menu == nullptr) {
       return;
     }
-    if (notify_is_initted()) {
-      notify_uninit();
-    }
-    qt_tray_menu->exit();
+    tray_linux::qt_tray_menu->exit();
   }
 
   void tray_set_log_callback(void (*cb)(int level, const char *msg)) {  // NOSONAR(cpp:S5205) - C API requires a plain function pointer callback type
-    g_log_cb = cb;
+    tray_linux::log_cb = cb;
     if (cb != nullptr) {
-      qInstallMessageHandler(qt_message_handler);
+      qInstallMessageHandler(tray_linux::qt_message_handler);
     } else {
       qInstallMessageHandler(nullptr);
     }
   }
 
   void tray_show_menu(void) {
-    if (qt_tray_menu == nullptr) {
+    if (tray_linux::qt_tray_menu == nullptr) {
       return;
     }
-    qt_tray_menu->showMenu();
+    tray_linux::qt_tray_menu->showMenu();
   }
 
   void tray_simulate_menu_item_click(int index) {
-    if (qt_tray_menu == nullptr) {
+    if (tray_linux::qt_tray_menu == nullptr) {
       return;
     }
-    qt_tray_menu->clickMenuItem(index);
+    tray_linux::qt_tray_menu->clickMenuItem(index);
   }
 
   void tray_simulate_notification_click(void) {
-    if (qt_tray_menu == nullptr) {
+    if (tray_linux::qt_tray_menu == nullptr) {
       return;
     }
-    qt_tray_menu->clickMessage();
+    tray_linux::notify_acknowledge();
   }
 }  // extern "C"
