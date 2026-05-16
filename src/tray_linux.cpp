@@ -51,6 +51,27 @@ namespace tray_linux {
   }
 
   /**
+   * @brief Acknowledge/click current notification
+   * @param run_callback - Run notification callback when acknowledging
+   */
+  void acknowledge_notification(const bool run_callback = false) {
+    if (notify_is_initted()) {
+      std::scoped_lock lock(notificationMutex);
+      if (notificationCurrent != nullptr && NOTIFY_IS_NOTIFICATION(notificationCurrent)) {
+        if (run_callback && notificationCurrentCallback != nullptr) {
+          notificationCurrentCallback();
+        }
+        notify_notification_close(notificationCurrent, nullptr);
+        g_object_unref(G_OBJECT(notificationCurrent));
+        notificationCurrent = nullptr;
+        notificationCurrentCallback = nullptr;
+      }
+    } else if (qt_tray_menu != nullptr) {
+      qt_tray_menu->clickMessage();
+    }
+  }
+
+  /**
    * @brief Handle tray notifications via desktop-independent interface
    * @param tray Tray structure containing notification information
    * @return true if notified successfully, false otherwise
@@ -61,13 +82,10 @@ namespace tray_linux {
     }
     // Try to notify using libnotify
     if (notify_is_initted()) {
-      std::scoped_lock lock(notificationMutex);
-      if (notificationCurrent != nullptr && NOTIFY_IS_NOTIFICATION(notificationCurrent)) {
-        notify_notification_close(notificationCurrent, nullptr);
-        g_object_unref(G_OBJECT(notificationCurrent));
-        notificationCurrent = nullptr;
-        notificationCurrentCallback = nullptr;
+      if (notificationCurrent != nullptr) {
+        acknowledge_notification();
       }
+      std::scoped_lock lock(notificationMutex);
       const char *notification_icon = tray->notification_icon != nullptr ? tray->notification_icon : tray->icon;
       notificationCurrent = notify_notification_new(tray->notification_title, tray->notification_text, notification_icon);
       if (notificationCurrent != nullptr && NOTIFY_IS_NOTIFICATION(notificationCurrent)) {
@@ -87,31 +105,11 @@ namespace tray_linux {
   }
 
   /**
-   * @brief Acknowledge/click current notification
-   */
-  void notify_acknowledge(bool run_callback = false) {
-    if (notify_is_initted()) {
-      std::scoped_lock lock(notificationMutex);
-      if (notificationCurrent != nullptr && NOTIFY_IS_NOTIFICATION(notificationCurrent)) {
-        if (run_callback && notificationCurrentCallback != nullptr) {
-          notificationCurrentCallback();
-        }
-        notify_notification_close(notificationCurrent, nullptr);
-        g_object_unref(G_OBJECT(notificationCurrent));
-        notificationCurrent = nullptr;
-        notificationCurrentCallback = nullptr;
-      }
-    } else if (qt_tray_menu != nullptr) {
-      qt_tray_menu->clickMessage();
-    }
-  }
-
-  /**
    * @brief Uninitialize notifications
    */
   void uninit_notify() {
     if (notify_is_initted()) {
-      notify_acknowledge();
+      acknowledge_notification();
       std::scoped_lock lock(notificationMutex);
       notify_uninit();
     }
@@ -222,6 +220,6 @@ extern "C" {
   }
 
   void tray_simulate_notification_click(void) {
-    tray_linux::notify_acknowledge(true);
+    tray_linux::acknowledge_notification(true);
   }
 }  // extern "C"
