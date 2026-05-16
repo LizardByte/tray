@@ -1,9 +1,11 @@
 #include "QtTrayMenu.h"
 
+#include <filesystem>
 #include <QApplication>
 #include <QCursor>
 #include <QDebug>
 #include <QMouseEvent>
+#include <QStyle>
 
 namespace {
   int defaultArgc = 1;  // NOSONAR(cpp:S5421): This is required for QApplication's argc/argv constructor
@@ -60,7 +62,8 @@ int QtTrayMenu::init(struct tray *tray, const bool notification) {
     QApplication::setApplicationName(tray->tooltip);
   }
 
-  trayIcon = new QSystemTrayIcon(QIcon(tray->icon), this);
+  // Create tray icon
+  trayIcon = new QSystemTrayIcon(lookupIcon(tray->icon), this);
   trayIcon->setToolTip(QString::fromUtf8(tray->tooltip));
 
   connect(trayIcon, &QSystemTrayIcon::activated, this, &QtTrayMenu::onTrayActivated);
@@ -173,6 +176,19 @@ void QtTrayMenu::createNotification() {
   }
 }
 
+QIcon QtTrayMenu::lookupIcon(QString icon) const {
+  // Find icon for tray
+  if (std::filesystem::exists(icon.toStdString())) {
+    if (auto result = QIcon(icon); !result.isNull()) {
+      return result;
+    }
+  }
+  if (auto result = QIcon::fromTheme(icon); !result.isNull()) {
+    return result;
+  }
+  return QApplication::style()->standardIcon(QStyle::SP_ComputerIcon);
+}
+
 bool QtTrayMenu::eventFilter(QObject *watched, QEvent *event) {
   qDebug() << "Event Type:" << event->type();
   return QObject::eventFilter(watched, event);
@@ -267,7 +283,7 @@ void QtTrayMenu::showMessage(const QString &title, const QString &msg, const QSt
   }
   if (QSystemTrayIcon::supportsMessages()) {
     notificationCallback = std::move(callback);
-    trayIcon->showMessage(title, msg, QIcon(iconPath), msecs);
+    trayIcon->showMessage(title, msg, lookupIcon(iconPath), msecs);
   }
 }
 

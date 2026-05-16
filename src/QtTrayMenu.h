@@ -5,6 +5,7 @@
 
 #include <QMenu>
 #include <QObject>
+#include <QString>
 #include <QSystemTrayIcon>
 
 /**
@@ -114,6 +115,7 @@ public:
 private:
   void createMenu(struct tray_menu *items, QMenu *menu);
   void createNotification();
+  QIcon lookupIcon(QString icon) const;
   QApplication *app = nullptr;
   QSystemTrayIcon *trayIcon = nullptr;
   QMenu *trayTopMenu = nullptr;
