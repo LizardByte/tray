@@ -43,22 +43,12 @@ namespace tray_linux {
 
   /**
    * @brief Initialize notifications
+   * @param app_name application name for notifications
    */
-  void init_notify() {
+  void init_notify(const char *app_name) {
     if (!notify_is_initted()) {
       std::scoped_lock lock(notification_mutex);
-      notify_init("tray");
-    }
-  }
-
-  /**
-   * @brief Uninitialize notifications
-   * @param app_name the current application name
-   */
-  void set_notify_app_info(const char *app_name) {
-    std::scoped_lock lock(notification_mutex);
-    if (app_name) {
-      notify_set_app_name(app_name);
+      notify_init(app_name);
     }
   }
 
@@ -131,6 +121,17 @@ namespace tray_linux {
   }
 
   /**
+   * @brief Update notification app name
+   * @param app_name the current application name
+   */
+  void set_notify_app_info(const char *app_name) {
+    if (app_name) {
+      uninit_notify();
+      init_notify(app_name);
+    }
+  }
+
+  /**
    * @brief Qt message handler that forwards to the registered log callback.
    * @param type The Qt message type.
    * @param msg The message string.
@@ -182,7 +183,7 @@ extern "C" {
     }
 
     // Init notify
-    tray_linux::init_notify();
+    tray_linux::init_notify("tray");
     tray_linux::notify(tray);
     return 0;
   }
