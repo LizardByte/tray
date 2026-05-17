@@ -113,6 +113,7 @@ public:
   void clickMessage() const;
 
 private:
+  void updateMenu(struct tray_menu *items);
   void createMenu(struct tray_menu *items, QMenu *menu);
   void createNotification();
   QIcon lookupIcon(QString icon) const;
