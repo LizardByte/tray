@@ -6,36 +6,47 @@
 #include <atomic>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <utility>
 
-// local includes
-#include "tray.h"
-
 // lib includes
 #include <libnotify/notify.h>
 
-// Qt includes
+// local includes
 #include "QtTrayMenu.h"
-
-#include <filesystem>
-#include <QString>
+#include "tray.h"
 
 namespace tray_linux {
-  NotifyNotification *notificationCurrent = nullptr;  // NOSONAR(cpp:S5421) - mutable state, not const
-  void (*notificationCurrentCallback)() = nullptr;  // NOSONAR(cpp:S5421) - mutable state, not const
-  std::mutex notificationMutex;  // NOSONAR(cpp:S5421) - mutable state, not const
+  /**
+   * Currently shown notification object
+   */
+  NotifyNotification *notification_current = nullptr;  // NOSONAR(cpp:S5421) - mutable state, not const
+  /**
+   * Currently shown notification callback
+   */
+  void (*notification_current_callback)() = nullptr;  // NOSONAR(cpp:S5421) - mutable state, not const
+  /**
+   * Lock for currently shown notification/callback
+   */
+  std::mutex notification_mutex;  // NOSONAR(cpp:S5421) - mutable state, not const
+  /**
+   * QtTrayMenu instance
+   */
   std::unique_ptr<QtTrayMenu> qt_tray_menu = nullptr;  // NOSONAR(cpp:S5421) - mutable state, not const
-  void (*log_cb)(int, const char *) = nullptr;  // NOSONAR(cpp:S5421) - mutable state, not const
+  /**
+   * Logging callback for qt_message_handler
+   */
+  void (*log_callback)(int, const char *) = nullptr;  // NOSONAR(cpp:S5421) - mutable state, not const
 
   /**
    * @brief Initialize notifications
    */
   void init_notify() {
     if (!notify_is_initted()) {
-      std::scoped_lock lock(notificationMutex);
+      std::scoped_lock lock(notification_mutex);
       notify_init("tray");
     }
   }
@@ -45,7 +56,7 @@ namespace tray_linux {
    * @param app_name the current application name
    */
   void set_notify_app_info(const char *app_name) {
-    std::scoped_lock lock(notificationMutex);
+    std::scoped_lock lock(notification_mutex);
     if (app_name) {
       notify_set_app_name(app_name);
     }
@@ -57,15 +68,15 @@ namespace tray_linux {
    */
   void acknowledge_notification(const bool run_callback = false) {
     if (notify_is_initted()) {
-      std::scoped_lock lock(notificationMutex);
-      if (notificationCurrent != nullptr && NOTIFY_IS_NOTIFICATION(notificationCurrent)) {
-        if (run_callback && notificationCurrentCallback != nullptr) {
-          notificationCurrentCallback();
+      std::scoped_lock lock(notification_mutex);
+      if (notification_current != nullptr && NOTIFY_IS_NOTIFICATION(notification_current)) {
+        if (run_callback && notification_current_callback != nullptr) {
+          notification_current_callback();
         }
-        notify_notification_close(notificationCurrent, nullptr);
-        g_object_unref(G_OBJECT(notificationCurrent));
-        notificationCurrent = nullptr;
-        notificationCurrentCallback = nullptr;
+        notify_notification_close(notification_current, nullptr);
+        g_object_unref(G_OBJECT(notification_current));
+        notification_current = nullptr;
+        notification_current_callback = nullptr;
       }
     } else if (qt_tray_menu != nullptr) {
       qt_tray_menu->clickMessage();
@@ -75,7 +86,6 @@ namespace tray_linux {
   /**
    * @brief Handle tray notifications via desktop-independent interface
    * @param tray Tray structure containing notification information
-   * @return true if notified successfully, false otherwise
    */
   void notify(struct tray *tray) {
     if (tray->notification_text == nullptr || std::string(tray->notification_text).empty()) {
@@ -83,22 +93,22 @@ namespace tray_linux {
     }
     // Try to notify using libnotify
     if (notify_is_initted()) {
-      if (notificationCurrent != nullptr) {
+      if (notification_current != nullptr) {
         acknowledge_notification();
       }
-      std::scoped_lock lock(notificationMutex);
+      std::scoped_lock lock(notification_mutex);
       std::filesystem::path notification_icon = tray->notification_icon != nullptr ? tray->notification_icon : tray->icon;
       if (std::filesystem::exists(notification_icon)) {
         // Use absolute path for filesystem icon files, not a relative one
         notification_icon = std::filesystem::absolute(notification_icon);
       }
-      notificationCurrent = notify_notification_new(tray->notification_title, tray->notification_text, notification_icon.c_str());
-      if (notificationCurrent != nullptr && NOTIFY_IS_NOTIFICATION(notificationCurrent)) {
+      notification_current = notify_notification_new(tray->notification_title, tray->notification_text, notification_icon.c_str());
+      if (notification_current != nullptr && NOTIFY_IS_NOTIFICATION(notification_current)) {
         if (tray->notification_cb != nullptr) {
-          notificationCurrentCallback = tray->notification_cb;
-          notify_notification_add_action(notificationCurrent, "default", "Default", NOTIFY_ACTION_CALLBACK(tray->notification_cb), nullptr, nullptr);
+          notification_current_callback = tray->notification_cb;
+          notify_notification_add_action(notification_current, "default", "Default", NOTIFY_ACTION_CALLBACK(tray->notification_cb), nullptr, nullptr);
         }
-        if (notify_notification_show(notificationCurrent, nullptr)) {
+        if (notify_notification_show(notification_current, nullptr)) {
           return;
         }
       }
@@ -115,7 +125,7 @@ namespace tray_linux {
   void uninit_notify() {
     if (notify_is_initted()) {
       acknowledge_notification();
-      std::scoped_lock lock(notificationMutex);
+      std::scoped_lock lock(notification_mutex);
       notify_uninit();
     }
   }
@@ -126,7 +136,7 @@ namespace tray_linux {
    * @param msg The message string.
    */
   void qt_message_handler(QtMsgType type, const QMessageLogContext &, const QString &msg) {
-    if (log_cb == nullptr) {
+    if (log_callback == nullptr) {
       return;
     }
     int level;
@@ -144,7 +154,7 @@ namespace tray_linux {
         level = 3;
         break;
     }
-    log_cb(level, msg.toUtf8().constData());
+    log_callback(level, msg.toUtf8().constData());
   }
 }  // namespace tray_linux
 
@@ -202,7 +212,7 @@ extern "C" {
   }
 
   void tray_set_log_callback(void (*cb)(int level, const char *msg)) {  // NOSONAR(cpp:S5205) - C API requires a plain function pointer callback type
-    tray_linux::log_cb = cb;
+    tray_linux::log_callback = cb;
     if (cb != nullptr) {
       qInstallMessageHandler(tray_linux::qt_message_handler);
     } else {
