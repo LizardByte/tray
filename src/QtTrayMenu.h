@@ -50,23 +50,11 @@ public:
   int init(struct tray *tray, bool notification = true);
 
   /**
-   * @brief Update tray configuration
-   * @param tray struct containing tray configuration
-   * @param notification fire tray notification if true
-   */
-  void update(struct tray *tray, bool notification = true);
-
-  /**
    * @brief Process tray loop events
    * @param blocking if true the function call will block until QtTrayMenu exits
    * @return 0 on successful processing if non-blocking, -1 otherwise
    */
   int loop(int blocking) const;
-
-  /**
-   * @brief Initialize tray with given structure
-   */
-  void exit();
 
   /**
    * @brief Configure metadata for QApplication
@@ -75,11 +63,6 @@ public:
    * @param desktopName the applications desktop file name
    */
   void configureAppMetadata(const QString &appName, const QString &appDisplayName, const QString &desktopName) const;
-
-  /**
-   * @brief Show tray context menu
-   */
-  void showMenu() const;
 
   /**
    * @brief Show tray message popup
@@ -112,10 +95,28 @@ public:
    */
   void clickMessage() const;
 
+signals:
+  /**
+   * @brief Exit tray and cleanup resources
+   */
+  void exit();
+
+  /**
+   * @brief Update tray configuration
+   * @param tray struct containing tray configuration
+   * @param notify fire tray notification if true
+   */
+  void update(struct tray *tray, bool notify = true);
+
+  /**
+   * @brief Show tray context menu
+   */
+  void showMenu() const;
+
 private:
-  void updateMenu(struct tray_menu *items);
   void createMenu(struct tray_menu *items, QMenu *menu);
   void createNotification();
+  void updateMenu(struct tray_menu *items);
   QIcon lookupIcon(QString icon) const;
   QApplication *app = nullptr;
   QSystemTrayIcon *trayIcon = nullptr;
@@ -126,8 +127,11 @@ private:
   std::function<void()> notificationCallback = nullptr;
 
 private slots:
-  void onTrayActivated(QSystemTrayIcon::ActivationReason reason);
+  void onExitRequested();
   void onMessageClicked() const;
   void onMenuItemTriggered();
+  void onTrayActivated(QSystemTrayIcon::ActivationReason reason);
+  void onShowMenu() const;
+  void onUpdate(struct tray *tray, bool notify);
 };
 #endif  // TRAYMENU_H
