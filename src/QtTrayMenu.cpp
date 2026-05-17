@@ -77,6 +77,9 @@ int QtTrayMenu::init(struct tray *tray, const bool notification) {
 
   connect(trayIcon, &QSystemTrayIcon::activated, this, &QtTrayMenu::onTrayActivated);
   connect(trayIcon, &QSystemTrayIcon::messageClicked, this, &QtTrayMenu::onMessageClicked);
+  connect(this, &QtTrayMenu::update, this, &QtTrayMenu::onUpdate);
+  connect(this, &QtTrayMenu::exit, this, &QtTrayMenu::onExitRequested);
+  connect(this, &QtTrayMenu::showMenu, this, &QtTrayMenu::onShowMenu);
 
   updateMenu(tray->menu);
 
@@ -90,19 +93,18 @@ int QtTrayMenu::init(struct tray *tray, const bool notification) {
   return 0;
 }
 
-void QtTrayMenu::update(struct tray *tray, const bool notification) {
+void QtTrayMenu::onUpdate(struct tray *tray, const bool notify) {
   if (!trayIcon) {
     return;
   }
   this->trayStruct = tray;
-  if (const auto newIcon = QIcon(tray->icon); !newIcon.isNull()) {
+  if (const auto newIcon = QIcon(trayStruct->icon); !newIcon.isNull()) {
     trayIcon->setIcon(newIcon);
   }
-  trayIcon->setToolTip(QString::fromUtf8(tray->tooltip));
+  trayIcon->setToolTip(QString::fromUtf8(trayStruct->tooltip));
 
-  updateMenu(tray->menu);
-
-  if (notification) {
+  updateMenu(trayStruct->menu);
+  if (notify) {
     createNotification();
   }
 }
@@ -124,14 +126,14 @@ int QtTrayMenu::loop(int blocking) const {
   }
 }
 
-void QtTrayMenu::exit() {
+void QtTrayMenu::onExitRequested() {
+  // Mark as no longer running
   running = false;
   // Remove tray menu references
   if (trayTopMenu) {
     trayTopMenu->hide();
     if (trayIcon) {
       trayIcon->setContextMenu(nullptr);
-      QApplication::processEvents();
     }
     delete trayTopMenu;  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
     trayTopMenu = nullptr;  // Set to nullptr after deletion
@@ -139,11 +141,9 @@ void QtTrayMenu::exit() {
   // Remove tray icon references;
   if (trayIcon) {
     trayIcon->hide();
-    QApplication::processEvents();
     delete trayIcon;  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
     trayIcon = nullptr;  // Set to nullptr after deletion
   }
-
   // Unset tray structure
   trayStruct = nullptr;
 }
@@ -161,7 +161,6 @@ void QtTrayMenu::updateMenu(struct tray_menu *items) {
   }
   // Store reference for cleanup
   trayTopMenu = newTrayTopMenu;
-
 }
 
 void QtTrayMenu::createMenu(struct tray_menu *items, QMenu *menu) {
@@ -278,7 +277,7 @@ void QtTrayMenu::configureAppMetadata(const QString &appName, const QString &app
   QApplication::setDesktopFileName(desktop_name);
 }
 
-void QtTrayMenu::showMenu() const {
+void QtTrayMenu::onShowMenu() const {
   if (!trayIcon) {
     return;
   }
@@ -295,7 +294,7 @@ void QtTrayMenu::showMessage(const QString &title, const QString &msg, std::func
   }
   if (QSystemTrayIcon::supportsMessages()) {
     notificationCallback = std::move(callback);
-    trayIcon->showMessage(title, msg, icon, msecs);
+    emit trayIcon->showMessage(title, msg, icon, msecs);
   }
 }
 
@@ -305,7 +304,7 @@ void QtTrayMenu::showMessage(const QString &title, const QString &msg, const QSt
   }
   if (QSystemTrayIcon::supportsMessages()) {
     notificationCallback = std::move(callback);
-    trayIcon->showMessage(title, msg, lookupIcon(iconPath), msecs);
+    emit trayIcon->showMessage(title, msg, lookupIcon(iconPath), msecs);
   }
 }
 
@@ -325,7 +324,7 @@ void QtTrayMenu::clickMenuItem(int index) const {
   if (!action || action->isSeparator() || action->menu() != nullptr || !action->isEnabled()) {
     return;
   }
-  action->trigger();
+  emit action->trigger();
 }
 
 void QtTrayMenu::clickMessage() const {
