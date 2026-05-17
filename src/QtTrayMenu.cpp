@@ -19,6 +19,11 @@ QtTrayMenu::QtTrayMenu(QObject *parent, const bool debug):
 
 QtTrayMenu::QtTrayMenu(int argc, char **argv, QObject *parent, const bool debug):
     QObject(parent) {
+  if (qgetenv("WAYLAND_DISPLAY").isEmpty() && qgetenv("DISPLAY").isEmpty()) {
+    // Force fallback to QT platform minimal if no (WAYLAND_)DISPLAY was found
+    qputenv("QT_QPA_PLATFORM", QByteArrayLiteral("minimal"));
+    qWarning("QtTrayMenu: no reachable WAYLAND_DISPLAY or DISPLAY endpoint, forcing QT_QPA_PLATFORM=minimal");
+  }
   if (QApplication::instance()) {
     app = dynamic_cast<QApplication *>(QApplication::instance());
     if (!app) {
@@ -54,6 +59,10 @@ int QtTrayMenu::init(struct tray *tray, const bool notification) {
     // Running tray is initialized again. Fail with error.
     return -1;
   }
+  if (!QSystemTrayIcon::isSystemTrayAvailable()) {
+    // Qt does not support system tray. Fail with error.
+    return -1;
+  }
 
   this->trayStruct = tray;
   this->running = true;
@@ -69,8 +78,7 @@ int QtTrayMenu::init(struct tray *tray, const bool notification) {
   connect(trayIcon, &QSystemTrayIcon::activated, this, &QtTrayMenu::onTrayActivated);
   connect(trayIcon, &QSystemTrayIcon::messageClicked, this, &QtTrayMenu::onMessageClicked);
 
-  trayTopMenu = new QMenu();  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
-  createMenu(tray->menu, trayTopMenu);
+  updateMenu(tray->menu);
 
   trayIcon->setContextMenu(trayTopMenu);
   trayIcon->show();
@@ -92,10 +100,8 @@ void QtTrayMenu::update(struct tray *tray, const bool notification) {
   }
   trayIcon->setToolTip(QString::fromUtf8(tray->tooltip));
 
-  if (auto *existingMenu = trayIcon->contextMenu()) {
-    existingMenu->clear();  // Remove all actions
-    createMenu(tray->menu, existingMenu);
-  }
+  updateMenu(tray->menu);
+
   if (notification) {
     createNotification();
   }
@@ -142,12 +148,28 @@ void QtTrayMenu::exit() {
   trayStruct = nullptr;
 }
 
+void QtTrayMenu::updateMenu(struct tray_menu *items) {
+  // Create and setup new tray menu instance
+  const auto newTrayTopMenu = new QMenu();  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
+  trayIcon->setContextMenu(newTrayTopMenu);
+  // Fill new tray menu instance
+  createMenu(items, newTrayTopMenu);
+  // Clear old, unused trayTopMenu instance
+  if (trayTopMenu != nullptr) {
+    trayTopMenu->clear();  // Remove all actions
+    delete trayTopMenu;  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
+  }
+  // Store reference for cleanup
+  trayTopMenu = newTrayTopMenu;
+
+}
+
 void QtTrayMenu::createMenu(struct tray_menu *items, QMenu *menu) {
   while (items && items->text) {
     if (strcmp(items->text, "-") == 0) {
       menu->addSeparator();
     } else {
-      auto *action = new QAction(QString::fromUtf8(items->text), menu);
+      auto *action = new QAction(QString::fromUtf8(items->text), menu);  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
       action->setDisabled(items->disabled == 1);
       action->setCheckable(items->checkbox == 1);
       action->setChecked(items->checked == 1);
