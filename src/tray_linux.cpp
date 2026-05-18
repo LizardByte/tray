@@ -44,12 +44,14 @@ namespace tray_linux {
   /**
    * @brief Initialize notifications
    * @param app_name application name for notifications
+   * @return true if successful
    */
-  void init_notify(const char *app_name) {
+  bool init_notify(const char *app_name) {
     if (!notify_is_initted()) {
       std::scoped_lock lock(notification_mutex);
-      notify_init(app_name);
+      return notify_init(app_name);
     }
+    return true;  // Already initialized, so init was successful
   }
 
   /**
@@ -74,7 +76,7 @@ namespace tray_linux {
   }
 
   /**
-   * @brief Handle tray notifications via desktop-independent interface
+   * @brief Show tray notification via desktop-independent interface
    * @param tray Tray structure containing notification information
    */
   void notify(struct tray *tray) {
@@ -174,16 +176,23 @@ extern "C" {
 
   int tray_init(struct tray *tray) {
     if (tray_linux::qt_tray_menu == nullptr) {
+      // Create a new unique pointer to QtTrayMenu instance
       tray_linux::qt_tray_menu = std::make_unique<QtTrayMenu>();
     }
 
-    // Init tray menu
     if (const auto result = tray_linux::qt_tray_menu->init(tray, false); result < 0) {
+      // Tray init failed. Clean up and return error.
+      tray_exit();
       return result;
     }
 
-    // Init notify
-    tray_linux::init_notify("tray");
+    if (!tray_linux::init_notify("tray")) {
+      // Notification init failed. Clean up and return error.
+      tray_exit();
+      return -1;
+    }
+
+    // Fire notification if there is one
     tray_linux::notify(tray);
     return 0;
   }
