@@ -120,6 +120,12 @@ namespace screenshot {
         return true;
       }
     }
+    if (std::system("which spectacle > /dev/null 2>&1") == 0) {
+      std::string cmd = "spectacle -f -b -n -o " + target;
+      if (std::system(cmd.c_str()) == 0) {
+        return true;
+      }
+    }
     std::string cmd = "gnome-screenshot -f " + target;
     return std::system(cmd.c_str()) == 0;
   }
