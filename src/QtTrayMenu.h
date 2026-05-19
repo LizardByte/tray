@@ -95,6 +95,12 @@ public:
    */
   void clickMessage() const;
 
+  /**
+   * @brief Check if QtTrayMenu supports messages
+   * @return true if messages can be shown
+   */
+  static bool supportsMessages();
+
 signals:
   /**
    * @brief Exit tray and cleanup resources

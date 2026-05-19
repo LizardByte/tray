@@ -70,7 +70,7 @@ namespace tray_linux {
         notification_current = nullptr;
         notification_current_callback = nullptr;
       }
-    } else if (qt_tray_menu != nullptr) {
+    } else if (qt_tray_menu != nullptr && QtTrayMenu::supportsMessages()) {
       qt_tray_menu->clickMessage();
     }
   }
@@ -105,8 +105,8 @@ namespace tray_linux {
         }
       }
     }
-    // Fall back to QtTrayMenu notification
-    if (qt_tray_menu != nullptr) {
+    // Fallback to QtTrayMenu notification
+    if (qt_tray_menu != nullptr && QtTrayMenu::supportsMessages()) {
       qt_tray_menu->showMessage(tray->notification_title, tray->notification_text, tray->notification_icon, tray->notification_cb);
     }
   }
@@ -186,7 +186,7 @@ extern "C" {
       return result;
     }
 
-    if (!tray_linux::init_notify("tray")) {
+    if (!tray_linux::init_notify("tray") && !QtTrayMenu::supportsMessages()) {
       // Notification init failed. Clean up and return error.
       tray_exit();
       return -1;

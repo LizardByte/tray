@@ -288,6 +288,10 @@ void QtTrayMenu::onShowMenu() const {
   }
 }
 
+bool QtTrayMenu::supportsMessages() {
+  return QSystemTrayIcon::supportsMessages();
+}
+
 void QtTrayMenu::showMessage(const QString &title, const QString &msg, std::function<void()> callback, const QSystemTrayIcon::MessageIcon icon, const int msecs) {
   if (!trayIcon) {
     return;
