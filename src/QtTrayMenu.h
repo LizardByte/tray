@@ -1,12 +1,18 @@
+/**
+ * @file src/QtTrayMenu.h
+ * @brief Declarations for Qt tray menu implemenation
+ */
 #ifndef TRAYMENU_H
 #define TRAYMENU_H
 
-#include "tray.h"
-
+// qt includes
 #include <QMenu>
 #include <QObject>
 #include <QString>
 #include <QSystemTrayIcon>
+
+// local includes
+#include "tray.h"
 
 /**
  * @brief Wrapper class for platfrom-independent Qt-based tray menu.

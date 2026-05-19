@@ -1,11 +1,19 @@
-#include "QtTrayMenu.h"
-
+/**
+ * @file src/QtTrayMenu.cpp
+ * @brief Definitions for Qt tray menu implemenation
+ */
+// standard includes
 #include <filesystem>
+
+// qt includes
 #include <QApplication>
 #include <QCursor>
 #include <QDebug>
 #include <QMouseEvent>
 #include <QStyle>
+
+// local includes
+#include "QtTrayMenu.h"
 
 namespace {
   int defaultArgc = 1;  // NOSONAR(cpp:S5421): This is required for QApplication's argc/argv constructor

@@ -43,36 +43,35 @@ This fork adds the following features:
 
 ### Linux Dependencies
 
-Install either Qt6 _or_ Qt5 development packages. The Linux backend requires
-Qt Widgets, DBus, and Svg modules.
+Install either Qt6 _or_ Qt5 as well as libnotify development packages. The Linux backend requires libnotify and Qt Widgets+Svg modules.
 
 <div class="tabbed">
 
 - <b class="tab-title">Arch</b>
     ```bash
     # Qt6
-    sudo pacman -S qt6-base qt6-svg
+    sudo pacman -S qt6-base qt6-svg libnotify
 
     # Qt5
-    sudo pacman -S qt5-base qt5-svg
+    sudo pacman -S qt5-base qt5-svg libnotify
     ```
 
 - <b class="tab-title">Debian/Ubuntu</b>
     ```bash
     # Qt6
-    sudo apt install qt6-base-dev qt6-svg-dev
+    sudo apt install qt6-base-dev qt6-svg-dev libnotify-dev
 
     # Qt5
-    sudo apt install qtbase5-dev libqt5svg5-dev
+    sudo apt install qtbase5-dev libqt5svg5-dev libnotify-dev
     ```
 
 - <b class="tab-title">Fedora</b>
     ```bash
     # Qt6
-    sudo dnf install qt6-qtbase-devel qt6-qtsvg-devel
+    sudo dnf install qt6-qtbase-devel qt6-qtsvg-devel libnotify-devel
 
     # Qt5
-    sudo dnf install qt5-qtbase-devel qt5-qtsvg-devel
+    sudo dnf install qt5-qtbase-devel qt5-qtsvg-devel libnotify-devel
     ```
 
 </div>
