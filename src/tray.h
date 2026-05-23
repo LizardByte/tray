@@ -28,6 +28,7 @@ extern "C" {
     const char *notification_text;  ///< Text to display in the notification.
     const char *notification_title;  ///< Title to display in the notification.
     void (*notification_cb)();  ///< Callback to invoke when the notification is clicked.
+    void (*cb)(struct tray *);  ///< Callback for left click, leave null to just open menu
     struct tray_menu *menu;  ///< Menu items.
     const int iconPathCount;  ///< Number of icon paths.
     const char *allIconPaths[];  ///< Array of icon paths.
