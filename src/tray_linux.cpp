@@ -176,6 +176,12 @@ extern "C" {
 
   int tray_init(struct tray *tray) {
     if (tray_linux::qt_tray_menu == nullptr) {
+      // Check if a (wayland_)display is set or fallback to minimal QPA platform
+      if (qgetenv("WAYLAND_DISPLAY").isEmpty() && qgetenv("DISPLAY").isEmpty()) {
+        // Force fallback to QT platform minimal if no (WAYLAND_)DISPLAY was found
+        qputenv("QT_QPA_PLATFORM", QByteArrayLiteral("minimal"));
+        qWarning("QtTrayMenu: no reachable WAYLAND_DISPLAY or DISPLAY endpoint, forcing QT_QPA_PLATFORM=minimal");
+      }
       // Create a new unique pointer to QtTrayMenu instance
       tray_linux::qt_tray_menu = std::make_unique<QtTrayMenu>();
     }
