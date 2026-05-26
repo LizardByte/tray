@@ -27,11 +27,6 @@ QtTrayMenu::QtTrayMenu(QObject *parent, const bool debug):
 
 QtTrayMenu::QtTrayMenu(int argc, char **argv, QObject *parent, const bool debug):
     QObject(parent) {
-  if (qgetenv("WAYLAND_DISPLAY").isEmpty() && qgetenv("DISPLAY").isEmpty()) {
-    // Force fallback to QT platform minimal if no (WAYLAND_)DISPLAY was found
-    qputenv("QT_QPA_PLATFORM", QByteArrayLiteral("minimal"));
-    qWarning("QtTrayMenu: no reachable WAYLAND_DISPLAY or DISPLAY endpoint, forcing QT_QPA_PLATFORM=minimal");
-  }
   if (QApplication::instance()) {
     app = dynamic_cast<QApplication *>(QApplication::instance());
     if (!app) {
