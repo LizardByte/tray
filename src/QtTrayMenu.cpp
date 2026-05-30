@@ -112,7 +112,7 @@ void QtTrayMenu::onUpdate(struct tray *tray, const bool notify) {
   }
 }
 
-int QtTrayMenu::loop(int blocking) const {
+int QtTrayMenu::loop(int blocking) {
   if (!running) {
     return -1;
   }
@@ -121,9 +121,11 @@ int QtTrayMenu::loop(int blocking) const {
     return -1;
   }
   if (blocking) {
+    blockingEventLoop = true;
     QApplication::exec();
     return -1;
   } else {
+    blockingEventLoop = false;
     QApplication::processEvents();
     return 0;
   }
@@ -149,6 +151,11 @@ void QtTrayMenu::onExitRequested() {
   }
   // Unset tray structure
   trayStruct = nullptr;
+
+  // If we run in a blocking event loop break said loop by quitting the QApplication
+  if (blockingEventLoop) {
+    QApplication::quit();
+  }
 }
 
 void QtTrayMenu::updateMenu(struct tray_menu *items) {
