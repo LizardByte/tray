@@ -60,7 +60,7 @@ public:
    * @param blocking if true the function call will block until QtTrayMenu exits
    * @return 0 on successful processing if non-blocking, -1 otherwise
    */
-  int loop(int blocking) const;
+  int loop(int blocking);
 
   /**
    * @brief Configure metadata for QApplication
@@ -135,6 +135,7 @@ private:
   QMenu *trayTopMenu = nullptr;
   struct tray *trayStruct = nullptr;
   bool running = false;
+  bool blockingEventLoop = false;
   struct tray_menu *getTrayMenuItem(QAction *action);
   std::function<void()> notificationCallback = nullptr;
 
