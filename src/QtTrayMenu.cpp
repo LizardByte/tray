@@ -81,7 +81,7 @@ int QtTrayMenu::init(struct tray *tray, const bool notification) {
   connect(trayIcon, &QSystemTrayIcon::activated, this, &QtTrayMenu::onTrayActivated);
   connect(trayIcon, &QSystemTrayIcon::messageClicked, this, &QtTrayMenu::onMessageClicked);
   connect(this, &QtTrayMenu::update, this, &QtTrayMenu::onUpdate);
-  connect(this, &QtTrayMenu::exit, this, &QtTrayMenu::onExitRequested);
+  connect(this, &QtTrayMenu::exit, this, &QtTrayMenu::onExitRequested, Qt::QueuedConnection);
   connect(this, &QtTrayMenu::showMenu, this, &QtTrayMenu::onShowMenu);
 
   updateMenu(tray->menu);
@@ -149,6 +149,10 @@ void QtTrayMenu::onExitRequested() {
   }
   // Unset tray structure
   trayStruct = nullptr;
+
+  // Quit the Qt event loop so that QApplication::exec() returns,
+  // allowing the main loop to exit and the application to shut down cleanly.
+  QApplication::quit();
 }
 
 void QtTrayMenu::updateMenu(struct tray_menu *items) {
