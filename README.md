@@ -84,6 +84,15 @@ cmake -G Ninja -B build -S .
 ninja -C build
 ```
 
+## Python Tooling
+
+Install [uv](https://docs.astral.sh/uv/) to sync and run the Python tools:
+
+```bash
+uv sync
+uv run python scripts/update_clang_format.py
+```
+
 ## Demo
 
 Execute the `tray_example` application:

@@ -37,6 +37,9 @@
 # VSCode IDE
 .vscode/
 
+# Python
+.venv/
+
 # build directories
 build/
 cmake-*/
