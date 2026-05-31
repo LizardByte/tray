@@ -10,6 +10,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <utility>
 
 // lib includes
@@ -21,17 +22,36 @@
 
 namespace tray_linux {
   /**
-   * Currently shown notification object
+   * Notification element struct
    */
-  NotifyNotification *notification_current = nullptr;  // NOSONAR(cpp:S5421) - mutable state, not const
+  struct notification_data {
+    /**
+     * @brief Notification object
+     */
+    NotifyNotification *obj = nullptr;
+    /**
+     * @brief Notification callback
+     */
+    void (*cb)() = nullptr;
+    /**
+     * @brief Notification shown indicator
+     */
+    bool shown = false;
+    /**
+     * @brief Notification mutex for async thread synchronization
+     */
+    std::mutex mutex;
+  };
+
   /**
-   * Currently shown notification callback
+   * Currently shown notifications
    */
-  void (*notification_current_callback)() = nullptr;  // NOSONAR(cpp:S5421) - mutable state, not const
+  std::vector<std::shared_ptr<notification_data>> notifications;  // NOSONAR(cpp:S5421) - mutable state, not const
   /**
-   * Lock for currently shown notification/callback
+   * Lock for currently shown notifications vector
    */
-  std::mutex notification_mutex;  // NOSONAR(cpp:S5421) - mutable state, not const
+  std::mutex notifications_mutex;  // NOSONAR(cpp:S5421) - mutable state, not const
+
   /**
    * QtTrayMenu instance
    */
@@ -42,36 +62,74 @@ namespace tray_linux {
   void (*log_callback)(int, const char *) = nullptr;  // NOSONAR(cpp:S5421) - mutable state, not const
 
   /**
-   * @brief Initialize notifications
-   * @param app_name application name for notifications
-   * @return true if successful
+   * @brief Acknowledge notification asynchronously with timeout to avoid Dbus lockups
+   * @param notification - Tray notification to close
+   * @param timeout - optional timeout for async run in ms (default: 1000)
    */
-  bool init_notify(const char *app_name) {
-    if (!notify_is_initted()) {
-      std::scoped_lock lock(notification_mutex);
-      return notify_init(app_name);
+  void async_tray_notification_acknowledge_(const std::shared_ptr<notification_data> &notification, int timeout = 1000) {
+    std::thread t([notification]() {  // NOSONAR(cpp:S6168) - jthread is only available on C++20 onwards
+      std::scoped_lock lock(notification->mutex);
+      if (notification->shown && notification->obj != nullptr && NOTIFY_IS_NOTIFICATION(notification->obj) && notify_notification_close(notification->obj, nullptr)) {
+        notification->shown = false;
+        g_object_unref(G_OBJECT(notification->obj));
+        notification->obj = nullptr;
+        notification->cb = nullptr;
+      }
+    });
+    while (notification->obj != nullptr && timeout > 0) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      timeout -= 10;
     }
-    return true;  // Already initialized, so init was successful
+    if (timeout > 0) {
+      // Finished. Join thread.
+      t.join();
+    } else {
+      // Timed out. Detach thread and continue.
+      t.detach();  // NOSONAR(cpp:S5962) - Keep this running until it times out by itself (usually after 25 seconds due to DBus)
+    }
   }
 
   /**
-   * @brief Acknowledge/click current notification
+   * @brief Acknowledge/click current notifications
    * @param run_callback - Run notification callback when acknowledging
    */
-  void acknowledge_notification(const bool run_callback = false) {
+  void acknowledge_notifications(bool run_callback = false) {
     if (notify_is_initted()) {
-      std::scoped_lock lock(notification_mutex);
-      if (notification_current != nullptr && NOTIFY_IS_NOTIFICATION(notification_current)) {
-        if (run_callback && notification_current_callback != nullptr) {
-          notification_current_callback();
+      std::scoped_lock lock(notifications_mutex);
+      for (auto notification : notifications) {
+        if (run_callback && notification->cb != nullptr) {
+          notification->cb();
         }
-        notify_notification_close(notification_current, nullptr);
-        g_object_unref(G_OBJECT(notification_current));
-        notification_current = nullptr;
-        notification_current_callback = nullptr;
+        async_tray_notification_acknowledge_(notification);
       }
+      notifications.clear();
     } else if (qt_tray_menu != nullptr && QtTrayMenu::supportsMessages()) {
       qt_tray_menu->clickMessage();
+    }
+  }
+
+  /**
+   * @brief Show notification asynchronously with timeout to avoid Dbus lockups
+   * @param notification - Tray notification to show
+   * @param timeout - optional timeout for async run in ms (default: 1000)
+   */
+  void async_tray_notification_show_(const std::shared_ptr<notification_data> &notification, int timeout = 1000) {
+    std::thread t([notification]() {  // NOSONAR(cpp:S6168) - jthread is only available on C++20 onwards
+      std::scoped_lock lock(notification->mutex);
+      if (notification->obj != nullptr && NOTIFY_IS_NOTIFICATION(notification->obj) && notify_notification_show(notification->obj, nullptr)) {
+        notification->shown = true;
+      }
+    });
+    while (!notification->shown && timeout > 0) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      timeout -= 10;
+    }
+    if (timeout > 0) {
+      // Finished. Join thread.
+      t.join();
+    } else {
+      // Timed out. Detach thread and continue.
+      t.detach();  // NOSONAR(cpp:S5962) - Keep this running until it times out by itself (usually after 25 seconds due to DBus)
     }
   }
 
@@ -85,30 +143,44 @@ namespace tray_linux {
     }
     // Try to notify using libnotify
     if (notify_is_initted()) {
-      if (notification_current != nullptr) {
-        acknowledge_notification();
+      if (!notifications.empty()) {
+        acknowledge_notifications();
       }
-      std::scoped_lock lock(notification_mutex);
+      std::scoped_lock lock(notifications_mutex);
       std::filesystem::path notification_icon = tray->notification_icon != nullptr ? tray->notification_icon : tray->icon;
       if (std::filesystem::exists(notification_icon)) {
         // Use absolute path for filesystem icon files, not a relative one
         notification_icon = std::filesystem::absolute(notification_icon);
       }
-      notification_current = notify_notification_new(tray->notification_title, tray->notification_text, notification_icon.c_str());
-      if (notification_current != nullptr && NOTIFY_IS_NOTIFICATION(notification_current)) {
+      auto notification = std::make_shared<struct notification_data>();
+      notification->obj = notify_notification_new(tray->notification_title, tray->notification_text, notification_icon.c_str());
+      if (notification->obj != nullptr && NOTIFY_IS_NOTIFICATION(notification->obj)) {
         if (tray->notification_cb != nullptr) {
-          notification_current_callback = tray->notification_cb;
-          notify_notification_add_action(notification_current, "default", "Default", NOTIFY_ACTION_CALLBACK(tray->notification_cb), nullptr, nullptr);
+          notification->cb = tray->notification_cb;
+          notify_notification_add_action(notification->obj, "default", "Default", NOTIFY_ACTION_CALLBACK(tray->notification_cb), nullptr, nullptr);
         }
-        if (notify_notification_show(notification_current, nullptr)) {
-          return;
-        }
+        notifications.emplace_back(notification);
+        async_tray_notification_show_(notification);
       }
-    }
-    // Fallback to QtTrayMenu notification
-    if (qt_tray_menu != nullptr && QtTrayMenu::supportsMessages()) {
+    } else if (qt_tray_menu != nullptr && QtTrayMenu::supportsMessages()) {
+      // Fallback to QtTrayMenu notification
       qt_tray_menu->showMessage(tray->notification_title, tray->notification_text, tray->notification_icon, tray->notification_cb);
     }
+  }
+
+  /**
+   * @brief Initialize notifications
+   * @param app_name application name for notifications
+   * @return true if successful
+   */
+  bool init_notify(const char *app_name) {
+    if (!notify_is_initted()) {
+      if (!notifications.empty()) {
+        acknowledge_notifications();
+      }
+      return notify_init(app_name);
+    }
+    return true;  // Already initialized, so init was successful
   }
 
   /**
@@ -116,8 +188,7 @@ namespace tray_linux {
    */
   void uninit_notify() {
     if (notify_is_initted()) {
-      acknowledge_notification();
-      std::scoped_lock lock(notification_mutex);
+      acknowledge_notifications();
       notify_uninit();
     }
   }
@@ -251,6 +322,6 @@ extern "C" {
   }
 
   void tray_simulate_notification_click(void) {
-    tray_linux::acknowledge_notification(true);
+    tray_linux::acknowledge_notifications(true);
   }
 }  // extern "C"
