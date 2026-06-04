@@ -86,11 +86,12 @@ ninja -C build
 
 ## Python Tooling
 
-Install [uv](https://docs.astral.sh/uv/) to sync and run the Python tools:
+Install [uv](https://docs.astral.sh/uv/) and initialize the shared tooling submodule:
 
 ```bash
-uv sync
-uv run python scripts/update_clang_format.py
+git submodule update --init --recursive third-party/lizardbyte-common
+uv run --project third-party/lizardbyte-common --locked --only-group lint-c \
+  python third-party/lizardbyte-common/scripts/update_clang_format.py
 ```
 
 ## Demo
