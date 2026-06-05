@@ -4,13 +4,11 @@
 // local includes
 #include "src/tray.h"
 
-#if defined(__linux__) || defined(linux) || defined(__linux)
-
-  // standard includes
-  #include <array>
-  #include <cstddef>
-  #include <cstring>
-  #include <vector>
+// standard includes
+#include <array>
+#include <cstddef>
+#include <cstring>
+#include <vector>
 
 namespace {
   int g_menu_callback_count = 0;
@@ -30,10 +28,10 @@ namespace {
   }
 }  // namespace
 
-class TrayLinuxCoverageTest: public LinuxTest {  // NOSONAR(cpp:S3656) - fixture members/methods are accessed by TEST_F-generated subclasses
+class TrayQtCoverageTest: public BaseTest {  // NOSONAR(cpp:S3656) - fixture members/methods are accessed by TEST_F-generated subclasses
 protected:  // NOSONAR(cpp:S3656) - TEST_F requires protected fixture visibility
   void SetUp() override {
-    LinuxTest::SetUp();
+    BaseTest::SetUp();
 
     tray_set_log_callback(nullptr);
     tray_set_app_info(nullptr, nullptr, nullptr);
@@ -47,7 +45,7 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F requires protected fixture visibility
     menuItems = {{{.text = "Clickable", .cb = menu_item_cb}, {.text = "-"}, {.text = "Submenu", .submenu = submenuItems.data()}, {.text = "Disabled", .disabled = 1, .cb = menu_item_cb}, {.text = "Second Clickable", .cb = menu_item_cb}, {.text = nullptr}}};
 
     trayData.icon = "icon.png";
-    trayData.tooltip = "Linux Tray Coverage";
+    trayData.tooltip = "Qt Tray Coverage";
     trayData.notification_icon = nullptr;
     trayData.notification_text = nullptr;
     trayData.notification_title = nullptr;
@@ -63,7 +61,7 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F requires protected fixture visibility
     }
 
     tray_set_log_callback(nullptr);
-    LinuxTest::TearDown();
+    BaseTest::TearDown();
   }
 
   void InitTray() {
@@ -84,7 +82,7 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F requires protected fixture visibility
   struct tray trayData {};
 };
 
-TEST_F(TrayLinuxCoverageTest, SimulateMenuClickSkipsNonTriggerableActions) {
+TEST_F(TrayQtCoverageTest, SimulateMenuClickSkipsNonTriggerableActions) {
   InitTray();
 
   tray_simulate_menu_item_click(-1);
@@ -103,7 +101,7 @@ TEST_F(TrayLinuxCoverageTest, SimulateMenuClickSkipsNonTriggerableActions) {
   EXPECT_EQ(g_menu_callback_count, 2);
 }
 
-TEST_F(TrayLinuxCoverageTest, ApiCallsAreNoOpsBeforeInit) {
+TEST_F(TrayQtCoverageTest, ApiCallsAreNoOpsBeforeInit) {
   tray_update(&trayData);
   tray_show_menu();
   tray_simulate_menu_item_click(0);
@@ -114,7 +112,7 @@ TEST_F(TrayLinuxCoverageTest, ApiCallsAreNoOpsBeforeInit) {
   EXPECT_EQ(g_notification_callback_count, 0);
 }
 
-TEST_F(TrayLinuxCoverageTest, SimulateMenuClickWithNullMenuDoesNothing) {
+TEST_F(TrayQtCoverageTest, SimulateMenuClickWithNullMenuDoesNothing) {
   trayData.menu = nullptr;
   InitTray();
 
@@ -124,8 +122,8 @@ TEST_F(TrayLinuxCoverageTest, SimulateMenuClickWithNullMenuDoesNothing) {
   EXPECT_EQ(g_menu_callback_count, 0);
 }
 
-TEST_F(TrayLinuxCoverageTest, SetAppInfoAppliesExplicitMetadata) {
-  tray_set_app_info("tray-linux-tests", "Tray Linux Tests", "tray-linux-tests.desktop");
+TEST_F(TrayQtCoverageTest, SetAppInfoAppliesExplicitMetadata) {
+  tray_set_app_info("tray-qt-tests", "Tray Qt Tests", "tray-qt-tests.desktop");
   InitTray();
 
   // Trigger an update to exercise metadata-dependent notification/tray code paths.
@@ -135,7 +133,7 @@ TEST_F(TrayLinuxCoverageTest, SetAppInfoAppliesExplicitMetadata) {
   PumpEvents();
 }
 
-TEST_F(TrayLinuxCoverageTest, SetAppInfoDefaultsUseFallbackValues) {
+TEST_F(TrayQtCoverageTest, SetAppInfoDefaultsUseFallbackValues) {
   tray_set_app_info(nullptr, nullptr, nullptr);
   trayData.tooltip = "Tooltip Display Name";
   InitTray();
@@ -146,7 +144,7 @@ TEST_F(TrayLinuxCoverageTest, SetAppInfoDefaultsUseFallbackValues) {
   PumpEvents();
 }
 
-TEST_F(TrayLinuxCoverageTest, LogCallbackCanBeSetAndReset) {
+TEST_F(TrayQtCoverageTest, LogCallbackCanBeSetAndReset) {
   InitTray();
   tray_set_log_callback(log_cb);
 
@@ -166,7 +164,7 @@ TEST_F(TrayLinuxCoverageTest, LogCallbackCanBeSetAndReset) {
   EXPECT_EQ(g_log_callback_count, 0);
 }
 
-TEST_F(TrayLinuxCoverageTest, TrayExitCausesLoopToReturnExitCode) {
+TEST_F(TrayQtCoverageTest, TrayExitCausesLoopToReturnExitCode) {
   InitTray();
 
   tray_exit();
@@ -176,7 +174,7 @@ TEST_F(TrayLinuxCoverageTest, TrayExitCausesLoopToReturnExitCode) {
   EXPECT_EQ(loopResult, -1);
 }
 
-TEST_F(TrayLinuxCoverageTest, UpdateMenuStateWithSameLayoutKeepsCallbacksWorking) {
+TEST_F(TrayQtCoverageTest, UpdateMenuStateWithSameLayoutKeepsCallbacksWorking) {
   InitTray();
 
   menuItems[0].text = "Clickable Renamed";
@@ -197,7 +195,7 @@ TEST_F(TrayLinuxCoverageTest, UpdateMenuStateWithSameLayoutKeepsCallbacksWorking
   EXPECT_EQ(g_menu_callback_count, 1);
 }
 
-TEST_F(TrayLinuxCoverageTest, ResolveTrayIconFromIconPathArray) {
+TEST_F(TrayQtCoverageTest, ResolveTrayIconFromIconPathArray) {
   // Build a tray struct with iconPathCount/allIconPaths to exercise fallback icon resolution.
   const size_t iconCount = 2;
   const size_t bufSize = sizeof(struct tray) + iconCount * sizeof(const char *);
@@ -227,7 +225,7 @@ TEST_F(TrayLinuxCoverageTest, ResolveTrayIconFromIconPathArray) {
   PumpEvents();
 }
 
-TEST_F(TrayLinuxCoverageTest, NotificationWithoutCallbackDoesNotInvokeOnSimulation) {
+TEST_F(TrayQtCoverageTest, NotificationWithoutCallbackDoesNotInvokeOnSimulation) {
   InitTray();
 
   trayData.notification_title = "No callback notification";
@@ -244,10 +242,10 @@ TEST_F(TrayLinuxCoverageTest, NotificationWithoutCallbackDoesNotInvokeOnSimulati
   EXPECT_EQ(g_notification_callback_count, 0);
 }
 
-TEST_F(TrayLinuxCoverageTest, ClearingNotificationDisablesSimulatedClickCallback) {
+TEST_F(TrayQtCoverageTest, ClearingNotificationDisablesSimulatedClickCallback) {
   InitTray();
 
-  trayData.notification_title = "Linux Notification";
+  trayData.notification_title = "Qt Notification";
   trayData.notification_text = "Notification body";
   trayData.notification_icon = "mail-message-new";
   trayData.notification_cb = notification_cb;
@@ -271,5 +269,3 @@ TEST_F(TrayLinuxCoverageTest, ClearingNotificationDisablesSimulatedClickCallback
   PumpEvents();
   EXPECT_EQ(g_notification_callback_count, 1);
 }
-
-#endif

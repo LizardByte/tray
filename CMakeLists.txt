@@ -67,32 +67,30 @@ function(tray_copy_default_icons target_name)
     endforeach()
 endfunction()
 
-if(WIN32)
-    list(APPEND TRAY_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/tray_windows.c")
+find_package(Qt6 COMPONENTS Widgets Svg)
+if(Qt6_FOUND)
+    set(TRAY_QT_VERSION 6)
 else()
-    if(UNIX)
-        if(APPLE)
-            find_library(COCOA Cocoa REQUIRED)
-            list(APPEND TRAY_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/tray_darwin.m")
-        else()
-            find_package(LibNotify REQUIRED)
-            find_package(Qt6 COMPONENTS Widgets Svg)
-            if(Qt6_FOUND)
-                set(TRAY_QT_VERSION 6)
-            else()
-                find_package(Qt5 REQUIRED COMPONENTS Widgets Svg)
-                set(TRAY_QT_VERSION 5)
-            endif()
-            set(TRAY_QT_VERSION  # cmake-lint: disable=C0103
-                    "${TRAY_QT_VERSION}"
-                    CACHE INTERNAL "Qt major version selected by tray"
-            )
-            set(CMAKE_AUTOMOC ON)
-            list(APPEND TRAY_SOURCES
-                    "${CMAKE_CURRENT_SOURCE_DIR}/src/tray_linux.cpp"
-                    "${CMAKE_CURRENT_SOURCE_DIR}/src/QtTrayMenu.cpp"
-            )
-        endif()
+    find_package(Qt5 REQUIRED COMPONENTS Widgets Svg)
+    set(TRAY_QT_VERSION 5)
+endif()
+set(TRAY_QT_VERSION  # cmake-lint: disable=C0103
+        "${TRAY_QT_VERSION}"
+        CACHE INTERNAL "Qt major version selected by tray"
+)
+set(CMAKE_AUTOMOC ON)
+list(APPEND TRAY_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/tray_qt.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/QtTrayMenu.cpp"
+)
+
+if(UNIX AND NOT APPLE)
+    find_package(LibNotify)
+    if(LIBNOTIFY_FOUND)
+        list(APPEND TRAY_COMPILE_DEFINITIONS TRAY_USE_LIBNOTIFY=1)
+        list(APPEND TRAY_EXTERNAL_LIBRARIES ${LIBNOTIFY_LIBRARIES})
+        list(APPEND TRAY_EXTERNAL_DIRECTORIES ${LIBNOTIFY_LIBRARY_DIRS})
+        list(APPEND TRAY_EXTERNAL_INCLUDES ${LIBNOTIFY_INCLUDE_DIRS})
     endif()
 endif()
 
@@ -104,27 +102,32 @@ target_include_directories(${PROJECT_NAME}
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
         $<INSTALL_INTERFACE:include>)
 
-if(WIN32)
-    if(MSVC)
-        list(APPEND TRAY_COMPILE_OPTIONS "/MT$<$<CONFIG:Debug>:d>")
-    endif()
-else()
-    if(UNIX)
-        if(APPLE)
-            list(APPEND TRAY_EXTERNAL_LIBRARIES ${COCOA})
-        else()
-            if(TRAY_QT_VERSION EQUAL 6)
-                list(APPEND TRAY_EXTERNAL_LIBRARIES Qt6::Widgets Qt6::Svg)
-            else()
-                list(APPEND TRAY_EXTERNAL_LIBRARIES Qt5::Widgets Qt5::Svg)
-            endif()
-            list(APPEND TRAY_LIBNOTIFY=1)
-            list(APPEND TRAY_EXTERNAL_LIBRARIES ${LIBNOTIFY_LIBRARIES})
+if(WIN32 AND MSVC)
+    list(APPEND TRAY_COMPILE_OPTIONS "/MT$<$<CONFIG:Debug>:d>")
+endif()
 
-            include_directories(SYSTEM ${LIBNOTIFY_INCLUDE_DIRS})
-            link_directories(${LIBNOTIFY_LIBRARY_DIRS})
+if(TRAY_QT_VERSION EQUAL 6)
+    list(APPEND TRAY_EXTERNAL_LIBRARIES Qt6::Widgets Qt6::Svg)
+else()
+    list(APPEND TRAY_EXTERNAL_LIBRARIES Qt5::Widgets Qt5::Svg)
+endif()
+
+if(TRAY_EXTERNAL_INCLUDES)
+    target_include_directories(${PROJECT_NAME}
+            SYSTEM PRIVATE
+            ${TRAY_EXTERNAL_INCLUDES})
+endif()
+
+if(TRAY_COMPILE_DEFINITIONS)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE ${TRAY_COMPILE_DEFINITIONS})
+endif()
+
+if(TRAY_EXTERNAL_DIRECTORIES)
+    foreach(tray_external_directory IN LISTS TRAY_EXTERNAL_DIRECTORIES)
+        if(tray_external_directory)
+            target_link_directories(${PROJECT_NAME} PRIVATE "${tray_external_directory}")
         endif()
-    endif()
+    endforeach()
 endif()
 
 add_library(tray::tray ALIAS ${PROJECT_NAME})
@@ -142,7 +145,6 @@ if(TRAY_IS_TOP_LEVEL)
 endif()
 
 target_compile_options(${PROJECT_NAME} PRIVATE ${TRAY_COMPILE_OPTIONS})
-target_link_directories(${PROJECT_NAME} PRIVATE ${TRAY_EXTERNAL_DIRECTORIES})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${TRAY_EXTERNAL_LIBRARIES})
 
 #

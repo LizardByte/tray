@@ -6,9 +6,9 @@
 
 ## About
 
-Cross-platform, super tiny C99 implementation of a system tray icon with a popup menu and notifications.
+Cross-platform C++17 Qt-backed system tray icon with a popup menu and notifications.
 
-The code is C++ friendly and will compile fine in C++98 and up. This is a fork of
+This is a fork of
 [dmikushin/tray](https://github.com/dmikushin/tray) and is intended to add additional features required for our own
 [Sunshine](https://github.com/LizardByte/Sunshine) project.
 
@@ -32,18 +32,20 @@ This fork adds the following features:
 
 ## Supported platforms
 
-* Linux/Qt (Qt5 or Qt6 Widgets)
-* Windows XP or newer (shellapi.h)
-* MacOS (Cocoa/AppKit)
+* Linux with Qt5 or Qt6 Widgets
+* macOS with Qt5 or Qt6 Widgets
+* Windows with Qt5 or Qt6 Widgets
 
 ## Prerequisites
 
 * CMake
 * [Ninja](https://ninja-build.org/), to have the same build commands on all platforms.
+* C++17 compiler
+* Qt5 or Qt6 Widgets and Svg modules
 
-### Linux Dependencies
+### Platform Dependencies
 
-Install either Qt6 _or_ Qt5 as well as libnotify development packages. The Linux backend requires libnotify and Qt Widgets+Svg modules.
+Install either Qt6 _or_ Qt5. Linux builds can also use libnotify when the development package is available.
 
 <div class="tabbed">
 
@@ -72,6 +74,20 @@ Install either Qt6 _or_ Qt5 as well as libnotify development packages. The Linux
 
     # Qt5
     sudo dnf install qt5-qtbase-devel qt5-qtsvg-devel libnotify-devel
+    ```
+
+- <b class="tab-title">macOS</b>
+    ```bash
+    brew install cmake ninja qtbase qtsvg
+    ```
+
+- <b class="tab-title">Windows (MSYS2 UCRT64)</b>
+    ```bash
+    pacman -S mingw-w64-ucrt-x86_64-cmake \
+      mingw-w64-ucrt-x86_64-ninja \
+      mingw-w64-ucrt-x86_64-toolchain \
+      mingw-w64-ucrt-x86_64-qt6-base \
+      mingw-w64-ucrt-x86_64-qt6-svg
     ```
 
 </div>

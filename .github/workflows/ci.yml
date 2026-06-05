@@ -52,7 +52,7 @@ jobs:
         include:
           - os: macos-latest
             shell: "bash"
-            qt_version: ''
+            qt_version: '6'
           - os: ubuntu-latest
             shell: "bash"
             qt_version: '5'
@@ -61,7 +61,7 @@ jobs:
             qt_version: '6'
           - os: windows-latest
             shell: "msys2 {0}"
-            qt_version: ''
+            qt_version: '6'
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
@@ -118,6 +118,8 @@ jobs:
             "imagemagick"
             "ninja"
             "node"
+            "qtbase"
+            "qtsvg"
           )
           brew install "${dependencies[@]}"
 
@@ -171,6 +173,8 @@ jobs:
             mingw-w64-ucrt-x86_64-ninja
             mingw-w64-ucrt-x86_64-nodejs
             mingw-w64-ucrt-x86_64-toolchain
+            mingw-w64-ucrt-x86_64-qt6-base
+            mingw-w64-ucrt-x86_64-qt6-svg
 
       - name: Setup python
         id: setup-python
@@ -250,7 +254,6 @@ jobs:
 
       - name: Run tests
         id: test
-        # TODO: tests randomly hang on Linux, https://github.com/LizardByte/tray/issues/45
         timeout-minutes: 3
         working-directory: build/tests
         env:
