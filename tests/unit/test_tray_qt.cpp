@@ -8,6 +8,7 @@
 #include <array>
 #include <cstddef>
 #include <cstring>
+#include <memory>
 #include <vector>
 
 namespace {
@@ -44,13 +45,18 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F requires protected fixture visibility
 
     menuItems = {{{.text = "Clickable", .cb = menu_item_cb}, {.text = "-"}, {.text = "Submenu", .submenu = submenuItems.data()}, {.text = "Disabled", .disabled = 1, .cb = menu_item_cb}, {.text = "Second Clickable", .cb = menu_item_cb}, {.text = nullptr}}};
 
-    trayData.icon = "icon.png";
-    trayData.tooltip = "Qt Tray Coverage";
-    trayData.notification_icon = nullptr;
-    trayData.notification_text = nullptr;
-    trayData.notification_title = nullptr;
-    trayData.notification_cb = nullptr;
-    trayData.menu = menuItems.data();
+    trayData = std::unique_ptr<struct tray>(
+      new tray {
+        .icon = "icon.png",
+        .tooltip = "Qt Tray Coverage",
+        .notification_icon = nullptr,
+        .notification_text = nullptr,
+        .notification_title = nullptr,
+        .notification_cb = nullptr,
+        .menu = menuItems.data(),
+        .iconPathCount = 0,
+      }
+    );
   }
 
   void TearDown() override {
@@ -65,7 +71,7 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F requires protected fixture visibility
   }
 
   void InitTray() {
-    const int initResult = tray_init(&trayData);
+    const int initResult = tray_init(trayData.get());
     trayRunning = (initResult == 0);
     ASSERT_EQ(initResult, 0);
   }
@@ -79,7 +85,7 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F requires protected fixture visibility
   bool trayRunning {false};
   std::array<struct tray_menu, 6> menuItems {};
   std::array<struct tray_menu, 2> submenuItems {};
-  struct tray trayData {};
+  std::unique_ptr<struct tray> trayData;
 };
 
 TEST_F(TrayQtCoverageTest, SimulateMenuClickSkipsNonTriggerableActions) {
@@ -102,7 +108,7 @@ TEST_F(TrayQtCoverageTest, SimulateMenuClickSkipsNonTriggerableActions) {
 }
 
 TEST_F(TrayQtCoverageTest, ApiCallsAreNoOpsBeforeInit) {
-  tray_update(&trayData);
+  tray_update(trayData.get());
   tray_show_menu();
   tray_simulate_menu_item_click(0);
   tray_simulate_notification_click();
@@ -113,7 +119,7 @@ TEST_F(TrayQtCoverageTest, ApiCallsAreNoOpsBeforeInit) {
 }
 
 TEST_F(TrayQtCoverageTest, SimulateMenuClickWithNullMenuDoesNothing) {
-  trayData.menu = nullptr;
+  trayData->menu = nullptr;
   InitTray();
 
   tray_simulate_menu_item_click(0);
@@ -127,20 +133,20 @@ TEST_F(TrayQtCoverageTest, SetAppInfoAppliesExplicitMetadata) {
   InitTray();
 
   // Trigger an update to exercise metadata-dependent notification/tray code paths.
-  trayData.notification_title = "Metadata Test";
-  trayData.notification_text = "Using explicit metadata";
-  tray_update(&trayData);
+  trayData->notification_title = "Metadata Test";
+  trayData->notification_text = "Using explicit metadata";
+  tray_update(trayData.get());
   PumpEvents();
 }
 
 TEST_F(TrayQtCoverageTest, SetAppInfoDefaultsUseFallbackValues) {
   tray_set_app_info(nullptr, nullptr, nullptr);
-  trayData.tooltip = "Tooltip Display Name";
+  trayData->tooltip = "Tooltip Display Name";
   InitTray();
 
-  trayData.notification_title = "Default Metadata Test";
-  trayData.notification_text = "Using fallback metadata";
-  tray_update(&trayData);
+  trayData->notification_title = "Default Metadata Test";
+  trayData->notification_text = "Using fallback metadata";
+  tray_update(trayData.get());
   PumpEvents();
 }
 
@@ -149,16 +155,16 @@ TEST_F(TrayQtCoverageTest, LogCallbackCanBeSetAndReset) {
   tray_set_log_callback(log_cb);
 
   // The callback is currently installed; this update path should remain stable.
-  trayData.tooltip = "Log callback installed";
-  tray_update(&trayData);
+  trayData->tooltip = "Log callback installed";
+  tray_update(trayData.get());
   PumpEvents();
 
   EXPECT_EQ(g_log_callback_count, 0);
 
   tray_set_log_callback(nullptr);
 
-  trayData.tooltip = "Log callback removed";
-  tray_update(&trayData);
+  trayData->tooltip = "Log callback removed";
+  tray_update(trayData.get());
   PumpEvents();
 
   EXPECT_EQ(g_log_callback_count, 0);
@@ -179,7 +185,7 @@ TEST_F(TrayQtCoverageTest, UpdateMenuStateWithSameLayoutKeepsCallbacksWorking) {
 
   menuItems[0].text = "Clickable Renamed";
   menuItems[0].disabled = 1;
-  tray_update(&trayData);
+  tray_update(trayData.get());
   PumpEvents();
 
   tray_simulate_menu_item_click(0);
@@ -187,7 +193,7 @@ TEST_F(TrayQtCoverageTest, UpdateMenuStateWithSameLayoutKeepsCallbacksWorking) {
   EXPECT_EQ(g_menu_callback_count, 0);
 
   menuItems[0].disabled = 0;
-  tray_update(&trayData);
+  tray_update(trayData.get());
   PumpEvents();
 
   tray_simulate_menu_item_click(0);
@@ -228,12 +234,12 @@ TEST_F(TrayQtCoverageTest, ResolveTrayIconFromIconPathArray) {
 TEST_F(TrayQtCoverageTest, NotificationWithoutCallbackDoesNotInvokeOnSimulation) {
   InitTray();
 
-  trayData.notification_title = "No callback notification";
-  trayData.notification_text = "Should not invoke callback";
-  trayData.notification_icon = "icon.png";
-  trayData.notification_cb = nullptr;
+  trayData->notification_title = "No callback notification";
+  trayData->notification_text = "Should not invoke callback";
+  trayData->notification_icon = "icon.png";
+  trayData->notification_cb = nullptr;
 
-  tray_update(&trayData);
+  tray_update(trayData.get());
   PumpEvents();
 
   tray_simulate_notification_click();
@@ -245,24 +251,24 @@ TEST_F(TrayQtCoverageTest, NotificationWithoutCallbackDoesNotInvokeOnSimulation)
 TEST_F(TrayQtCoverageTest, ClearingNotificationDisablesSimulatedClickCallback) {
   InitTray();
 
-  trayData.notification_title = "Qt Notification";
-  trayData.notification_text = "Notification body";
-  trayData.notification_icon = "mail-message-new";
-  trayData.notification_cb = notification_cb;
+  trayData->notification_title = "Qt Notification";
+  trayData->notification_text = "Notification body";
+  trayData->notification_icon = "mail-message-new";
+  trayData->notification_cb = notification_cb;
 
-  tray_update(&trayData);
+  tray_update(trayData.get());
   PumpEvents();
 
   tray_simulate_notification_click();
   PumpEvents();
   EXPECT_EQ(g_notification_callback_count, 1);
 
-  trayData.notification_title = nullptr;
-  trayData.notification_text = nullptr;
-  trayData.notification_icon = nullptr;
-  trayData.notification_cb = nullptr;
+  trayData->notification_title = nullptr;
+  trayData->notification_text = nullptr;
+  trayData->notification_icon = nullptr;
+  trayData->notification_cb = nullptr;
 
-  tray_update(&trayData);
+  tray_update(trayData.get());
   PumpEvents();
 
   tray_simulate_notification_click();
