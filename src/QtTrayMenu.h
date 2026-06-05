@@ -102,6 +102,11 @@ public:
   void clickMessage() const;
 
   /**
+   * @brief Clear the stored popup message callback
+   */
+  void clearMessageCallback() const;
+
+  /**
    * @brief Check if QtTrayMenu supports messages
    * @return true if messages can be shown
    */
@@ -137,7 +142,7 @@ private:
   bool running = false;
   bool blockingEventLoop = false;
   struct tray_menu *getTrayMenuItem(QAction *action);
-  std::function<void()> notificationCallback = nullptr;
+  mutable std::function<void()> notificationCallback = nullptr;
 
 private slots:
   void onExitRequested();
