@@ -8,24 +8,34 @@
 #include <array>
 #include <cstddef>
 #include <cstring>
-#include <memory>
 #include <vector>
 
 namespace {
-  int g_menu_callback_count = 0;
-  int g_notification_callback_count = 0;
-  int g_log_callback_count = 0;
+  int &menu_callback_count() {
+    static int count = 0;
+    return count;
+  }
+
+  int &notification_callback_count() {
+    static int count = 0;
+    return count;
+  }
+
+  int &log_callback_count() {
+    static int count = 0;
+    return count;
+  }
 
   void menu_item_cb([[maybe_unused]] struct tray_menu *item) {
-    g_menu_callback_count++;
+    menu_callback_count()++;
   }
 
   void notification_cb() {
-    g_notification_callback_count++;
+    notification_callback_count()++;
   }
 
   void log_cb([[maybe_unused]] int level, [[maybe_unused]] const char *msg) {
-    g_log_callback_count++;
+    log_callback_count()++;
   }
 }  // namespace
 
@@ -37,26 +47,26 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F requires protected fixture visibility
     tray_set_log_callback(nullptr);
     tray_set_app_info(nullptr, nullptr, nullptr);
 
-    g_menu_callback_count = 0;
-    g_notification_callback_count = 0;
-    g_log_callback_count = 0;
+    menu_callback_count() = 0;
+    notification_callback_count() = 0;
+    log_callback_count() = 0;
 
     submenuItems = {{{.text = "Nested", .cb = menu_item_cb}, {.text = nullptr}}};
 
     menuItems = {{{.text = "Clickable", .cb = menu_item_cb}, {.text = "-"}, {.text = "Submenu", .submenu = submenuItems.data()}, {.text = "Disabled", .disabled = 1, .cb = menu_item_cb}, {.text = "Second Clickable", .cb = menu_item_cb}, {.text = nullptr}}};
 
-    trayData = std::unique_ptr<struct tray>(
-      new tray {
-        .icon = "icon.png",
-        .tooltip = "Qt Tray Coverage",
-        .notification_icon = nullptr,
-        .notification_text = nullptr,
-        .notification_title = nullptr,
-        .notification_cb = nullptr,
-        .menu = menuItems.data(),
-        .iconPathCount = 0,
-      }
-    );
+    trayDataStorage.assign(sizeof(struct tray), std::byte {0});
+    trayData = reinterpret_cast<struct tray *>(trayDataStorage.data());  // NOSONAR(cpp:S3630) - required to map a C flexible-array struct over raw storage
+    trayData->icon = "icon.png";
+    trayData->tooltip = "Qt Tray Coverage";
+    trayData->notification_icon = nullptr;
+    trayData->notification_text = nullptr;
+    trayData->notification_title = nullptr;
+    trayData->notification_cb = nullptr;
+    trayData->menu = menuItems.data();
+
+    const int iconPathCount = 0;
+    std::memcpy(const_cast<int *>(&trayData->iconPathCount), &iconPathCount, sizeof(iconPathCount));  // NOSONAR(cpp:S859) - required to initialize const member in C struct allocated via raw buffer
   }
 
   void TearDown() override {
@@ -71,7 +81,7 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F requires protected fixture visibility
   }
 
   void InitTray() {
-    const int initResult = tray_init(trayData.get());
+    const int initResult = tray_init(trayData);
     trayRunning = (initResult == 0);
     ASSERT_EQ(initResult, 0);
   }
@@ -85,7 +95,8 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F requires protected fixture visibility
   bool trayRunning {false};
   std::array<struct tray_menu, 6> menuItems {};
   std::array<struct tray_menu, 2> submenuItems {};
-  std::unique_ptr<struct tray> trayData;
+  std::vector<std::byte> trayDataStorage {};
+  struct tray *trayData = nullptr;
 };
 
 TEST_F(TrayQtCoverageTest, SimulateMenuClickSkipsNonTriggerableActions) {
@@ -98,24 +109,24 @@ TEST_F(TrayQtCoverageTest, SimulateMenuClickSkipsNonTriggerableActions) {
   tray_simulate_menu_item_click(3);
   PumpEvents();
 
-  EXPECT_EQ(g_menu_callback_count, 0);
+  EXPECT_EQ(menu_callback_count(), 0);
 
   tray_simulate_menu_item_click(0);
   tray_simulate_menu_item_click(4);
   PumpEvents();
 
-  EXPECT_EQ(g_menu_callback_count, 2);
+  EXPECT_EQ(menu_callback_count(), 2);
 }
 
 TEST_F(TrayQtCoverageTest, ApiCallsAreNoOpsBeforeInit) {
-  tray_update(trayData.get());
+  tray_update(trayData);
   tray_show_menu();
   tray_simulate_menu_item_click(0);
   tray_simulate_notification_click();
   PumpEvents();
 
-  EXPECT_EQ(g_menu_callback_count, 0);
-  EXPECT_EQ(g_notification_callback_count, 0);
+  EXPECT_EQ(menu_callback_count(), 0);
+  EXPECT_EQ(notification_callback_count(), 0);
 }
 
 TEST_F(TrayQtCoverageTest, SimulateMenuClickWithNullMenuDoesNothing) {
@@ -125,7 +136,7 @@ TEST_F(TrayQtCoverageTest, SimulateMenuClickWithNullMenuDoesNothing) {
   tray_simulate_menu_item_click(0);
   PumpEvents();
 
-  EXPECT_EQ(g_menu_callback_count, 0);
+  EXPECT_EQ(menu_callback_count(), 0);
 }
 
 TEST_F(TrayQtCoverageTest, SetAppInfoAppliesExplicitMetadata) {
@@ -134,7 +145,7 @@ TEST_F(TrayQtCoverageTest, SetAppInfoAppliesExplicitMetadata) {
 
   // Trigger an update to exercise metadata-dependent tray code paths.
   trayData->tooltip = "Explicit metadata update";
-  tray_update(trayData.get());
+  tray_update(trayData);
   PumpEvents();
 }
 
@@ -144,7 +155,7 @@ TEST_F(TrayQtCoverageTest, SetAppInfoDefaultsUseFallbackValues) {
   InitTray();
 
   trayData->tooltip = "Fallback metadata update";
-  tray_update(trayData.get());
+  tray_update(trayData);
   PumpEvents();
 }
 
@@ -154,18 +165,18 @@ TEST_F(TrayQtCoverageTest, LogCallbackCanBeSetAndReset) {
 
   // The callback is currently installed; this update path should remain stable.
   trayData->tooltip = "Log callback installed";
-  tray_update(trayData.get());
+  tray_update(trayData);
   PumpEvents();
 
-  EXPECT_EQ(g_log_callback_count, 0);
+  EXPECT_EQ(log_callback_count(), 0);
 
   tray_set_log_callback(nullptr);
 
   trayData->tooltip = "Log callback removed";
-  tray_update(trayData.get());
+  tray_update(trayData);
   PumpEvents();
 
-  EXPECT_EQ(g_log_callback_count, 0);
+  EXPECT_EQ(log_callback_count(), 0);
 }
 
 TEST_F(TrayQtCoverageTest, TrayExitCausesLoopToReturnExitCode) {
@@ -183,20 +194,20 @@ TEST_F(TrayQtCoverageTest, UpdateMenuStateWithSameLayoutKeepsCallbacksWorking) {
 
   menuItems[0].text = "Clickable Renamed";
   menuItems[0].disabled = 1;
-  tray_update(trayData.get());
+  tray_update(trayData);
   PumpEvents();
 
   tray_simulate_menu_item_click(0);
   PumpEvents();
-  EXPECT_EQ(g_menu_callback_count, 0);
+  EXPECT_EQ(menu_callback_count(), 0);
 
   menuItems[0].disabled = 0;
-  tray_update(trayData.get());
+  tray_update(trayData);
   PumpEvents();
 
   tray_simulate_menu_item_click(0);
   PumpEvents();
-  EXPECT_EQ(g_menu_callback_count, 1);
+  EXPECT_EQ(menu_callback_count(), 1);
 }
 
 TEST_F(TrayQtCoverageTest, ResolveTrayIconFromIconPathArray) {
@@ -214,7 +225,7 @@ TEST_F(TrayQtCoverageTest, ResolveTrayIconFromIconPathArray) {
   iconPathTray->notification_cb = nullptr;
   iconPathTray->menu = menuItems.data();
 
-  const int countVal = static_cast<int>(iconCount);
+  const auto countVal = static_cast<int>(iconCount);
   std::memcpy(const_cast<int *>(&iconPathTray->iconPathCount), &countVal, sizeof(countVal));  // NOSONAR(cpp:S859) - const member initialization is required for this C interop allocation pattern
   const char *badIcon = "missing-icon-name";
   const char *goodIcon = "icon.png";
@@ -237,18 +248,18 @@ TEST_F(TrayQtCoverageTest, NotificationWithoutCallbackDoesNotInvokeOnSimulation)
   trayData->notification_icon = "icon.png";
   trayData->notification_cb = nullptr;
 
-  tray_update(trayData.get());
+  tray_update(trayData);
   PumpEvents();
 
   tray_simulate_notification_click();
   PumpEvents();
 
-  EXPECT_EQ(g_notification_callback_count, 0);
+  EXPECT_EQ(notification_callback_count(), 0);
 
   trayData->notification_title = nullptr;
   trayData->notification_text = nullptr;
   trayData->notification_icon = nullptr;
-  tray_update(trayData.get());
+  tray_update(trayData);
   PumpEvents();
   waitForNativeNotificationTimeout();
 }
@@ -261,24 +272,24 @@ TEST_F(TrayQtCoverageTest, ClearingNotificationDisablesSimulatedClickCallback) {
   trayData->notification_icon = "mail-message-new";
   trayData->notification_cb = notification_cb;
 
-  tray_update(trayData.get());
+  tray_update(trayData);
   PumpEvents();
 
   tray_simulate_notification_click();
   PumpEvents();
-  EXPECT_EQ(g_notification_callback_count, 1);
+  EXPECT_EQ(notification_callback_count(), 1);
 
   trayData->notification_title = nullptr;
   trayData->notification_text = nullptr;
   trayData->notification_icon = nullptr;
   trayData->notification_cb = nullptr;
 
-  tray_update(trayData.get());
+  tray_update(trayData);
   PumpEvents();
 
   tray_simulate_notification_click();
   PumpEvents();
-  EXPECT_EQ(g_notification_callback_count, 1);
+  EXPECT_EQ(notification_callback_count(), 1);
 
   waitForNativeNotificationTimeout();
 }

@@ -147,15 +147,15 @@ namespace tray_qt {
 
   /**
    * @brief Initialize notifications
-   * @param app_name application name for notifications
+   * @param notify_app_name application name for notifications
    * @return true if successful
    */
-  bool init_notify(const char *app_name) {
+  bool init_notify(const char *notify_app_name) {
     if (!notify_is_initted()) {
       if (!notifications.empty()) {
-        acknowledge_notification();
+        acknowledge_notification(false);
       }
-      return notify_init(app_name);
+      return notify_init(notify_app_name);
     }
     return true;  // Already initialized, so init was successful
   }
