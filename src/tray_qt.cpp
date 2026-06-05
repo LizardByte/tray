@@ -100,7 +100,7 @@ namespace tray_qt {
    * @param timeout optional timeout for async run in ms
    */
   void async_tray_notification_acknowledge_(const std::shared_ptr<notification_data> &notification, int timeout = 1000) {
-    std::thread t([notification]() {  // NOSONAR(cpp:S6168) - jthread is only available on C++20 onwards
+    std::thread t([notification]() {
       std::scoped_lock lock(notification->mutex);
       if (notification->shown && notification->obj != nullptr && NOTIFY_IS_NOTIFICATION(notification->obj) && notify_notification_close(notification->obj, nullptr)) {
         notification->shown = false;
@@ -126,7 +126,7 @@ namespace tray_qt {
    * @param timeout optional timeout for async run in ms
    */
   void async_tray_notification_show_(const std::shared_ptr<notification_data> &notification, int timeout = 1000) {
-    std::thread t([notification]() {  // NOSONAR(cpp:S6168) - jthread is only available on C++20 onwards
+    std::thread t([notification]() {
       std::scoped_lock lock(notification->mutex);
       if (notification->obj != nullptr && NOTIFY_IS_NOTIFICATION(notification->obj) && notify_notification_show(notification->obj, nullptr)) {
         notification->shown = true;

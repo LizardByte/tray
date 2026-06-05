@@ -86,7 +86,7 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F generates subclasses that need access
   // Capture a screenshot while the tray menu is open, then dismiss and exit.
   void captureMenuStateAndExit(const char *screenshotName) {
     std::atomic_bool exitRequested {false};
-    std::thread capture_thread([this, screenshotName, &exitRequested]() {  // NOSONAR(cpp:S6168) - std::jthread is unavailable on AppleClang 17/libc++ used in CI
+    std::thread capture_thread([this, screenshotName, &exitRequested]() {
       EXPECT_TRUE(captureScreenshot(screenshotName));
       closeMenu();
       exitRequested.store(true, std::memory_order_release);
