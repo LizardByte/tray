@@ -5,6 +5,10 @@
 // test includes
 #include "utils.h"
 
+// standard includes
+#include <chrono>
+#include <thread>
+
 /**
  * @brief Set an environment variable.
  * @param name Name of the environment variable
@@ -16,5 +20,12 @@ int setEnv(const std::string &name, const std::string &value) {
   return _putenv_s(name.c_str(), value.c_str());
 #else
   return setenv(name.c_str(), value.c_str(), 1);
+#endif
+}
+
+void waitForNativeNotificationTimeout() {
+#ifdef _WIN32
+  constexpr auto wait_timeout = std::chrono::milliseconds(6000);
+  std::this_thread::sleep_for(wait_timeout);
 #endif
 }

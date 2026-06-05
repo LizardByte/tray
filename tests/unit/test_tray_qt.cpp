@@ -132,9 +132,8 @@ TEST_F(TrayQtCoverageTest, SetAppInfoAppliesExplicitMetadata) {
   tray_set_app_info("tray-qt-tests", "Tray Qt Tests", "tray-qt-tests.desktop");
   InitTray();
 
-  // Trigger an update to exercise metadata-dependent notification/tray code paths.
-  trayData->notification_title = "Metadata Test";
-  trayData->notification_text = "Using explicit metadata";
+  // Trigger an update to exercise metadata-dependent tray code paths.
+  trayData->tooltip = "Explicit metadata update";
   tray_update(trayData.get());
   PumpEvents();
 }
@@ -144,8 +143,7 @@ TEST_F(TrayQtCoverageTest, SetAppInfoDefaultsUseFallbackValues) {
   trayData->tooltip = "Tooltip Display Name";
   InitTray();
 
-  trayData->notification_title = "Default Metadata Test";
-  trayData->notification_text = "Using fallback metadata";
+  trayData->tooltip = "Fallback metadata update";
   tray_update(trayData.get());
   PumpEvents();
 }
@@ -246,6 +244,13 @@ TEST_F(TrayQtCoverageTest, NotificationWithoutCallbackDoesNotInvokeOnSimulation)
   PumpEvents();
 
   EXPECT_EQ(g_notification_callback_count, 0);
+
+  trayData->notification_title = nullptr;
+  trayData->notification_text = nullptr;
+  trayData->notification_icon = nullptr;
+  tray_update(trayData.get());
+  PumpEvents();
+  waitForNativeNotificationTimeout();
 }
 
 TEST_F(TrayQtCoverageTest, ClearingNotificationDisablesSimulatedClickCallback) {
@@ -274,4 +279,6 @@ TEST_F(TrayQtCoverageTest, ClearingNotificationDisablesSimulatedClickCallback) {
   tray_simulate_notification_click();
   PumpEvents();
   EXPECT_EQ(g_notification_callback_count, 1);
+
+  waitForNativeNotificationTimeout();
 }

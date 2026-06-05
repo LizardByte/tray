@@ -330,6 +330,7 @@ TEST_F(TrayTest, TestNotificationDisplay) {
   testTray.notification_text = nullptr;
   testTray.notification_icon = nullptr;
   tray_update(&testTray);
+  waitForNativeNotificationTimeout();
 }
 
 TEST_F(TrayTest, TestNotificationCallback) {
@@ -368,6 +369,7 @@ TEST_F(TrayTest, TestNotificationCallback) {
   testTray.notification_icon = nullptr;
   testTray.notification_cb = nullptr;
   tray_update(&testTray);
+  waitForNativeNotificationTimeout();
 }
 
 TEST_F(TrayTest, TestTooltipUpdate) {
@@ -550,6 +552,7 @@ TEST_F(TrayTest, TestNotificationWithThemedIcon) {
   testTray.notification_text = nullptr;
   testTray.notification_icon = nullptr;
   tray_update(&testTray);
+  waitForNativeNotificationTimeout();
 }
 
 TEST_F(TrayTest, TestMenuAppearsOnLeftClick) {
@@ -595,6 +598,7 @@ TEST_F(TrayTest, TestNotificationCallbackFiredOnClick) {
   testTray.notification_icon = nullptr;
   testTray.notification_cb = nullptr;
   tray_update(&testTray);
+  waitForNativeNotificationTimeout();
 }
 
 TEST_F(TrayTest, TestMenuCallbackAfterNotificationUpdate) {
@@ -631,6 +635,7 @@ TEST_F(TrayTest, TestMenuCallbackAfterNotificationUpdate) {
   testTray.notification_text = nullptr;
   testTray.notification_icon = nullptr;
   tray_update(&testTray);
+  waitForNativeNotificationTimeout();
 
   testTray.menu[0].cb = original_cb;
 }
