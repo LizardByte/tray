@@ -33,8 +33,6 @@ option(BUILD_EXAMPLE "Build example app" ${TRAY_IS_TOP_LEVEL})
 set(CMAKE_COLOR_MAKEFILE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-find_package(PkgConfig)
-
 file(GLOB TRAY_SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h"
 )
@@ -88,16 +86,6 @@ list(APPEND TRAY_SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/src/QtTrayMenu.cpp"
 )
 
-if(UNIX AND NOT APPLE)
-    find_package(LibNotify)
-    if(LIBNOTIFY_FOUND)
-        list(APPEND TRAY_COMPILE_DEFINITIONS TRAY_USE_LIBNOTIFY=1)
-        list(APPEND TRAY_EXTERNAL_LIBRARIES ${LIBNOTIFY_LIBRARIES})
-        list(APPEND TRAY_EXTERNAL_DIRECTORIES ${LIBNOTIFY_LIBRARY_DIRS})
-        list(APPEND TRAY_EXTERNAL_INCLUDES ${LIBNOTIFY_INCLUDE_DIRS})
-    endif()
-endif()
-
 add_library(${PROJECT_NAME} STATIC ${TRAY_SOURCES})
 set_property(TARGET ${PROJECT_NAME} PROPERTY C_STANDARD 99)
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 17)
@@ -116,22 +104,8 @@ else()
     list(APPEND TRAY_EXTERNAL_LIBRARIES Qt5::Widgets Qt5::Svg)
 endif()
 
-if(TRAY_EXTERNAL_INCLUDES)
-    target_include_directories(${PROJECT_NAME}
-            SYSTEM PRIVATE
-            ${TRAY_EXTERNAL_INCLUDES})
-endif()
-
 if(TRAY_COMPILE_DEFINITIONS)
     target_compile_definitions(${PROJECT_NAME} PRIVATE ${TRAY_COMPILE_DEFINITIONS})
-endif()
-
-if(TRAY_EXTERNAL_DIRECTORIES)
-    foreach(tray_external_directory IN LISTS TRAY_EXTERNAL_DIRECTORIES)
-        if(tray_external_directory)
-            target_link_directories(${PROJECT_NAME} PRIVATE "${tray_external_directory}")
-        endif()
-    endforeach()
 endif()
 
 add_library(tray::tray ALIAS ${PROJECT_NAME})
