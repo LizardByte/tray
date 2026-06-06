@@ -74,10 +74,6 @@ else()
     find_package(Qt5 REQUIRED COMPONENTS Widgets Svg)
     set(TRAY_QT_VERSION 5)
 endif()
-set(TRAY_QT_VERSION  # cmake-lint: disable=C0103
-        "${TRAY_QT_VERSION}"
-        CACHE INTERNAL "Qt major version selected by tray"
-)
 set(CMAKE_AUTOMOC ON)
 list(APPEND TRAY_SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/src/tray_qt.cpp"
