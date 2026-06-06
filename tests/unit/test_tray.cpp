@@ -5,7 +5,6 @@
 #include <array>
 #include <atomic>
 #include <chrono>
-#include <cstdlib>
 #include <ostream>
 #include <string>
 #include <thread>
@@ -251,7 +250,7 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F generates subclasses that need access
   void WaitForNotificationReady() {
     WaitForTrayReady();
 #if defined(_WIN32)
-    if (std::getenv("GITHUB_ACTIONS") != nullptr) {
+    if (isGitHubActions()) {
       for (int i = 0; i < 40; i++) {
         tray_loop(0);
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
