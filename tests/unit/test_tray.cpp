@@ -16,7 +16,7 @@
 #include "tests/screenshot_utils.h"
 
 constexpr const char *TRAY_ICON1 = "icon.png";
-constexpr const char *TRAY_ICON2 = "icon.png";
+constexpr const char *TRAY_ICON2 = "icon2.png";
 constexpr const char *TRAY_ICON_SVG = "icon.svg";
 constexpr const char *TRAY_ICON_THEMED = "mail-message-new";
 

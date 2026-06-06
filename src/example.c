@@ -10,7 +10,7 @@
 #include "tray.h"
 
 #define TRAY_ICON1 "icon.png"  ///< Path to first icon.
-#define TRAY_ICON2 "icon.png"  ///< Path to second icon.
+#define TRAY_ICON2 "icon2.png"  ///< Path to second icon.
 
 static struct tray tray;
 
