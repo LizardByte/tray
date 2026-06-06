@@ -39,33 +39,41 @@ file(GLOB TRAY_SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h"
 )
 
-set(TRAY_ICON_ICO "${CMAKE_CURRENT_SOURCE_DIR}/icons/icon.ico")
-set(TRAY_ICON_PNG "${CMAKE_CURRENT_SOURCE_DIR}/icons/icon.png")
-set(TRAY_ICON_SVG "${CMAKE_CURRENT_SOURCE_DIR}/icons/icon.svg")
-set(TRAY_ICON_FILES
-        "${TRAY_ICON_ICO}"
-        "${TRAY_ICON_PNG}"
-        "${TRAY_ICON_SVG}"
-)
+if(TRAY_IS_TOP_LEVEL)
+    set(TRAY_ICON_ICO "${CMAKE_CURRENT_SOURCE_DIR}/icons/icon.ico")
+    set(TRAY_ICON_PNG "${CMAKE_CURRENT_SOURCE_DIR}/icons/icon.png")
+    set(TRAY_ICON_SVG "${CMAKE_CURRENT_SOURCE_DIR}/icons/icon.svg")
+    set(TRAY_ICON2_ICO "${CMAKE_CURRENT_SOURCE_DIR}/icons/icon2.ico")
+    set(TRAY_ICON2_PNG "${CMAKE_CURRENT_SOURCE_DIR}/icons/icon2.png")
+    set(TRAY_ICON2_SVG "${CMAKE_CURRENT_SOURCE_DIR}/icons/icon2.svg")
+    set(TRAY_ICON_FILES
+            "${TRAY_ICON_ICO}"
+            "${TRAY_ICON_PNG}"
+            "${TRAY_ICON_SVG}"
+            "${TRAY_ICON2_ICO}"
+            "${TRAY_ICON2_PNG}"
+            "${TRAY_ICON2_SVG}"
+    )
 
-set(_TRAY_ICON_ICO "${TRAY_ICON_ICO}" CACHE INTERNAL "Default tray ICO icon path")
-set(_TRAY_ICON_PNG "${TRAY_ICON_PNG}" CACHE INTERNAL "Default tray PNG icon path")
-set(_TRAY_ICON_SVG "${TRAY_ICON_SVG}" CACHE INTERNAL "Default tray SVG icon path")
+    set(_TRAY_ICON_ICO "${TRAY_ICON_ICO}" CACHE INTERNAL "Default tray ICO icon path")
+    set(_TRAY_ICON_PNG "${TRAY_ICON_PNG}" CACHE INTERNAL "Default tray PNG icon path")
+    set(_TRAY_ICON_SVG "${TRAY_ICON_SVG}" CACHE INTERNAL "Default tray SVG icon path")
 
-# Copy default tray icon files into the output directory of the specified target.
-function(tray_copy_default_icons target_name)
-    if(NOT TARGET "${target_name}")
-        message(FATAL_ERROR "tray_copy_default_icons expected an existing target: ${target_name}")
-    endif()
+    # Copy default tray icon files into the output directory of the specified target.
+    function(tray_copy_default_icons target_name)
+        if(NOT TARGET "${target_name}")
+            message(FATAL_ERROR "tray_copy_default_icons expected an existing target: ${target_name}")
+        endif()
 
-    foreach(icon_file IN LISTS TRAY_ICON_FILES)
-        add_custom_command(TARGET "${target_name}" POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${icon_file}"
-                "$<TARGET_FILE_DIR:${target_name}>"
-                COMMENT "Copying ${icon_file} to $<TARGET_FILE_DIR:${target_name}>")
-    endforeach()
-endfunction()
+        foreach(icon_file IN LISTS TRAY_ICON_FILES)
+            add_custom_command(TARGET "${target_name}" POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${icon_file}"
+                    "$<TARGET_FILE_DIR:${target_name}>"
+                    COMMENT "Copying ${icon_file} to $<TARGET_FILE_DIR:${target_name}>")
+        endforeach()
+    endfunction()
+endif()
 
 find_package(Qt6 COMPONENTS Widgets Svg)
 if(Qt6_FOUND)
@@ -128,7 +136,7 @@ endif()
 
 add_library(tray::tray ALIAS ${PROJECT_NAME})
 
-if(BUILD_EXAMPLE)
+if(TRAY_IS_TOP_LEVEL AND BUILD_EXAMPLE)
     add_executable(tray_example "${CMAKE_CURRENT_SOURCE_DIR}/src/example.c")
     target_link_libraries(tray_example tray::tray)
     tray_copy_default_icons(tray_example)
