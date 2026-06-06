@@ -379,6 +379,7 @@ TEST_P(TrayNotificationIconTest, TestNotificationDisplay) {
   int initResult = tray_init(&testTray);
   trayRunning = (initResult == 0);
   ASSERT_EQ(initResult, 0);
+  dismissNativeNotifications();
 
   // Set notification properties
   testTray.notification_title = "Test Notification";
@@ -603,8 +604,7 @@ TEST_F(TrayTest, TestMenuAppearsOnLeftClick) {
 
 TEST_P(TrayNotificationIconTest, TestNotificationCallbackFiredOnClick) {
   // Regression test for: clicking a notification did not invoke the callback.
-  // On the D-Bus path, QSystemTrayIcon::messageClicked is never emitted; the
-  // callback must be routed through TrayNotificationHandler::onActionInvoked.
+  // The test hook exercises the same stored callback used by Qt's messageClicked signal.
   const auto &iconParam = GetParam();
   testTray.icon = iconParam.icon;
   static bool callbackInvoked = false;

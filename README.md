@@ -46,35 +46,35 @@ This fork adds the following features:
 
 ### Platform Dependencies
 
-Install either Qt6 _or_ Qt5. Linux builds can also use libnotify when the development package is available.
+Install either Qt6 _or_ Qt5.
 
 <div class="tabbed">
 
 - <b class="tab-title">Arch</b>
     ```bash
     # Qt6
-    sudo pacman -S qt6-base qt6-svg libnotify
+    sudo pacman -S qt6-base qt6-svg
 
     # Qt5
-    sudo pacman -S qt5-base qt5-svg libnotify
+    sudo pacman -S qt5-base qt5-svg
     ```
 
 - <b class="tab-title">Debian/Ubuntu</b>
     ```bash
     # Qt6
-    sudo apt install qt6-base-dev qt6-svg-dev libnotify-dev
+    sudo apt install qt6-base-dev qt6-svg-dev
 
     # Qt5
-    sudo apt install qtbase5-dev libqt5svg5-dev libnotify-dev
+    sudo apt install qtbase5-dev libqt5svg5-dev
     ```
 
 - <b class="tab-title">Fedora</b>
     ```bash
     # Qt6
-    sudo dnf install qt6-qtbase-devel qt6-qtsvg-devel libnotify-devel
+    sudo dnf install qt6-qtbase-devel qt6-qtsvg-devel
 
     # Qt5
-    sudo dnf install qt5-qtbase-devel qt5-qtsvg-devel libnotify-devel
+    sudo dnf install qt5-qtbase-devel qt5-qtsvg-devel
     ```
 
 - <b class="tab-title">macOS</b>
@@ -133,14 +133,13 @@ The `icon` and `notification_icon` fields can be a path to an image file or an i
 are resolved from the process working directory, so applications should copy or install icon files where the running
 process can find them.
 
-| Component                                                                              | Backend                                               | Supported inputs                   | Notes                                                                                                                                                                                       |
-|----------------------------------------------------------------------------------------|-------------------------------------------------------|------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Tray icon (`icon`)                                                                     | Qt `QSystemTrayIcon` / `QIcon` on all platforms       | SVG, ICO, PNG, Qt theme icon names | Loaded through Qt's `QIcon` path; SVG, ICO, and PNG are tested. Theme icon names are resolved by Qt when the platform/theme supports them.                                                  |
-| Notification icon (`notification_icon`) on Windows, macOS, and Linux without libnotify | Qt `QSystemTrayIcon::showMessage` / `QIcon`           | SVG, ICO, PNG, Qt theme icon names | Loaded through Qt's `QIcon` path; SVG, ICO, and PNG are tested. Theme icon names are resolved by Qt when the platform/theme supports them.                                                  |
-| Notification icon (`notification_icon`) on Linux with libnotify                        | libnotify / freedesktop notification server           | SVG, PNG, or icon theme name       | libnotify accepts an icon theme name or filename, but the notification server and installed image loaders decide which file formats render. Do not rely on ICO for libnotify notifications. |
+| Component                               | Backend                                                      | Supported inputs                   | Notes                                                                                                                                      |
+|-----------------------------------------|--------------------------------------------------------------|------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| Tray icon (`icon`)                      | Qt `QSystemTrayIcon` / `QIcon` on all platforms              | SVG, ICO, PNG, Qt theme icon names | Loaded through Qt's `QIcon` path; SVG, ICO, and PNG are tested. Theme icon names are resolved by Qt when the platform/theme supports them. |
+| Notification icon (`notification_icon`) | Qt `QSystemTrayIcon::showMessage` / `QIcon` on all platforms | SVG, ICO, PNG, Qt theme icon names | Loaded through Qt's `QIcon` path; SVG, ICO, and PNG are tested. Theme icon names are resolved by Qt when the platform/theme supports them. |
 
 For the most predictable cross-platform behavior, use SVG or PNG files for both tray and notification icons. ICO is
-supported by the Qt-backed paths tested by this project, but it is not portable for libnotify notifications.
+supported by the Qt-backed paths tested by this project.
 Qt theme icons should be passed as icon name strings, such as `mail-message-new`.
 
 ## API

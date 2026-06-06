@@ -9,4 +9,6 @@
 
 int setEnv(const std::string &name, const std::string &value);
 
+void dismissNativeNotifications();
+
 void waitForNativeNotificationTimeout();
