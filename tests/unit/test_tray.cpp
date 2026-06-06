@@ -513,16 +513,21 @@ TEST_F(TrayTest, TestCheckboxStates) {
   testTray.menu[1].checked = 1;
 }
 
-TEST_F(TrayTest, TestMultipleIconUpdates) {
+TEST_P(TrayIconTest, TestMultipleIconUpdates) {
+  const auto &iconParam = GetParam();
+  testTray.icon = iconParam.icon;
+
   int initResult = tray_init(&testTray);
   trayRunning = (initResult == 0);
   ASSERT_EQ(initResult, 0);
 
   // Update icon multiple times
-  testTray.icon = TRAY_ICON2;
+  testTray.icon = iconParam.alternateIcon;
   tray_update(&testTray);
+  WaitForTrayReady();
+  EXPECT_TRUE(captureScreenshot(std::string("tray_icon_update_") + iconParam.name));
 
-  testTray.icon = TRAY_ICON1;
+  testTray.icon = iconParam.icon;
   tray_update(&testTray);
 }
 
