@@ -5,6 +5,7 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <cstdlib>
 #include <ostream>
 #include <string>
 #include <thread>
@@ -246,6 +247,18 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F generates subclasses that need access
       std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
   }
+
+  void WaitForNotificationReady() {
+    WaitForTrayReady();
+#if defined(_WIN32)
+    if (std::getenv("GITHUB_ACTIONS") != nullptr) {
+      for (int i = 0; i < 40; i++) {
+        tray_loop(0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+      }
+    }
+#endif
+  }
 };
 
 class TrayIconTest:
@@ -388,7 +401,7 @@ TEST_P(TrayNotificationIconTest, TestNotificationDisplay) {
 
   tray_update(&testTray);
 
-  WaitForTrayReady();
+  WaitForNotificationReady();
   EXPECT_TRUE(captureScreenshot(std::string("tray_notification_") + iconParam.name + "_icon"));
 
   // Clear notification
