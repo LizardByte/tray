@@ -133,10 +133,7 @@ The `icon` and `notification_icon` fields can be a path to an image file or an i
 are resolved from the process working directory, so applications should copy or install icon files where the running
 process can find them.
 
-| Component                               | Backend                                                      | Supported inputs                   | Notes                                                                                                                                      |
-|-----------------------------------------|--------------------------------------------------------------|------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| Tray icon (`icon`)                      | Qt `QSystemTrayIcon` / `QIcon` on all platforms              | SVG, ICO, PNG, Qt theme icon names | Loaded through Qt's `QIcon` path; SVG, ICO, and PNG are tested. Theme icon names are resolved by Qt when the platform/theme supports them. |
-| Notification icon (`notification_icon`) | Qt `QSystemTrayIcon::showMessage` / `QIcon` on all platforms | SVG, ICO, PNG, Qt theme icon names | Loaded through Qt's `QIcon` path; SVG, ICO, and PNG are tested. Theme icon names are resolved by Qt when the platform/theme supports them. |
+SVG, ICO, PNG, and Qt theme icon names are supported.
 
 For the most predictable cross-platform behavior, use SVG or PNG files for both tray and notification icons. ICO is
 supported by the Qt-backed paths tested by this project.
