@@ -127,6 +127,22 @@ Execute the `tests` application:
 ./build/tests/test_tray
 ```
 
+## Icon formats
+
+The `icon` and `notification_icon` fields can be a path to an image file or an icon theme name. Relative file paths
+are resolved from the process working directory, so applications should copy or install icon files where the running
+process can find them.
+
+| Component                                                                              | Backend                                               | Supported inputs                   | Notes                                                                                                                                                                                       |
+|----------------------------------------------------------------------------------------|-------------------------------------------------------|------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Tray icon (`icon`)                                                                     | Qt `QSystemTrayIcon` / `QIcon` on all platforms       | SVG, ICO, PNG, Qt theme icon names | Loaded through Qt's `QIcon` path; SVG, ICO, and PNG are tested. Theme icon names are resolved by Qt when the platform/theme supports them.                                                  |
+| Notification icon (`notification_icon`) on Windows, macOS, and Linux without libnotify | Qt `QSystemTrayIcon::showMessage` / `QIcon`           | SVG, ICO, PNG, Qt theme icon names | Loaded through Qt's `QIcon` path; SVG, ICO, and PNG are tested. Theme icon names are resolved by Qt when the platform/theme supports them.                                                  |
+| Notification icon (`notification_icon`) on Linux with libnotify                        | libnotify / freedesktop notification server           | SVG, PNG, or icon theme name       | libnotify accepts an icon theme name or filename, but the notification server and installed image loaders decide which file formats render. Do not rely on ICO for libnotify notifications. |
+
+For the most predictable cross-platform behavior, use SVG or PNG files for both tray and notification icons. ICO is
+supported by the Qt-backed paths tested by this project, but it is not portable for libnotify notifications.
+Qt theme icons should be passed as icon name strings, such as `mail-message-new`.
+
 ## API
 
 Tray structure defines an icon and a menu.

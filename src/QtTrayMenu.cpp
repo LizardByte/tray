@@ -101,7 +101,7 @@ void QtTrayMenu::onUpdate(struct tray *tray, const bool notify) {
     return;
   }
   this->trayStruct = tray;
-  if (const auto newIcon = QIcon(trayStruct->icon); !newIcon.isNull()) {
+  if (const auto newIcon = lookupIcon(trayStruct->icon); !newIcon.isNull()) {
     trayIcon->setIcon(newIcon);
   }
   trayIcon->setToolTip(QString::fromUtf8(trayStruct->tooltip));
