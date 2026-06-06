@@ -10,6 +10,13 @@
 #include <cstdlib>
 #include <thread>
 
+#ifdef _WIN32
+  #ifndef NOMINMAX
+    #define NOMINMAX
+  #endif
+  #include <Windows.h>
+#endif
+
 #ifdef __linux__
 namespace {
   void closeFreedesktopNotifications() {
@@ -41,6 +48,18 @@ int setEnv(const std::string &name, const std::string &value) {
 #endif
 }
 
+bool isGitHubActions() {
+#ifdef _WIN32
+  SetLastError(ERROR_SUCCESS);
+  if (GetEnvironmentVariableA("GITHUB_ACTIONS", nullptr, 0) > 0) {
+    return true;
+  }
+  return GetLastError() == ERROR_SUCCESS;
+#else
+  return std::getenv("GITHUB_ACTIONS") != nullptr;
+#endif
+}
+
 void dismissNativeNotifications() {
 #ifdef __linux__
   closeFreedesktopNotifications();
@@ -51,6 +70,9 @@ void dismissNativeNotifications() {
 
 void waitForNativeNotificationTimeout() {
 #ifdef _WIN32
+  if (!isGitHubActions()) {
+    return;
+  }
   constexpr auto wait_timeout = std::chrono::milliseconds(6000);
   std::this_thread::sleep_for(wait_timeout);
 #elif defined(__linux__)
