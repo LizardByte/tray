@@ -19,6 +19,7 @@ This fork adds the following features:
 - code coverage
 - refactored code, e.g., moved source code into the `src` directory
 - doxygen documentation and readthedocs configuration
+- all platforms use QT-based implementation
 
 ## Screenshots
 
@@ -32,9 +33,9 @@ This fork adds the following features:
 
 ## Supported platforms
 
-* Linux with Qt5 or Qt6 Widgets
-* macOS with Qt5 or Qt6 Widgets
-* Windows with Qt5 or Qt6 Widgets
+* Linux
+* macOS
+* Windows
 
 ## Prerequisites
 
