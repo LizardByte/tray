@@ -24,14 +24,13 @@
 # project metadata
 DOCSET_BUNDLE_ID = dev.lizardbyte.tray
 DOCSET_PUBLISHER_ID = dev.lizardbyte.tray.documentation
-PROJECT_BRIEF = "Cross-platform, super tiny C99 implementation of a system tray icon with a popup menu and notifications."
+PROJECT_BRIEF = "Cross-platform C++17 Qt-backed system tray icon with a popup menu and notifications."
 PROJECT_NAME = tray
 
 # project specific settings
 DOT_GRAPH_MAX_NODES = 50
 IMAGE_PATH = ../docs/images
 INCLUDE_PATH =
-PREDEFINED += TRAY_WINAPI
 
 # files and directories to process
 USE_MDFILE_AS_MAINPAGE = ../README.md

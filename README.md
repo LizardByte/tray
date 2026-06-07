@@ -6,9 +6,9 @@
 
 ## About
 
-Cross-platform, super tiny C99 implementation of a system tray icon with a popup menu and notifications.
+Cross-platform C++17 Qt-backed system tray icon with a popup menu and notifications.
 
-The code is C++ friendly and will compile fine in C++98 and up. This is a fork of
+This is a fork of
 [dmikushin/tray](https://github.com/dmikushin/tray) and is intended to add additional features required for our own
 [Sunshine](https://github.com/LizardByte/Sunshine) project.
 
@@ -19,6 +19,7 @@ This fork adds the following features:
 - code coverage
 - refactored code, e.g., moved source code into the `src` directory
 - doxygen documentation and readthedocs configuration
+- all platforms use QT-based implementation
 
 ## Screenshots
 
@@ -32,46 +33,62 @@ This fork adds the following features:
 
 ## Supported platforms
 
-* Linux/Qt (Qt5 or Qt6 Widgets)
-* Windows XP or newer (shellapi.h)
-* MacOS (Cocoa/AppKit)
+* Linux
+* macOS
+* Windows
 
 ## Prerequisites
 
 * CMake
 * [Ninja](https://ninja-build.org/), to have the same build commands on all platforms.
+* C++17 compiler
+* Qt5 or Qt6 Widgets and Svg modules
 
-### Linux Dependencies
+### Platform Dependencies
 
-Install either Qt6 _or_ Qt5 as well as libnotify development packages. The Linux backend requires libnotify and Qt Widgets+Svg modules.
+Install either Qt6 _or_ Qt5.
 
 <div class="tabbed">
 
 - <b class="tab-title">Arch</b>
     ```bash
     # Qt6
-    sudo pacman -S qt6-base qt6-svg libnotify
+    sudo pacman -S qt6-base qt6-svg
 
     # Qt5
-    sudo pacman -S qt5-base qt5-svg libnotify
+    sudo pacman -S qt5-base qt5-svg
     ```
 
 - <b class="tab-title">Debian/Ubuntu</b>
     ```bash
     # Qt6
-    sudo apt install qt6-base-dev qt6-svg-dev libnotify-dev
+    sudo apt install qt6-base-dev qt6-svg-dev
 
     # Qt5
-    sudo apt install qtbase5-dev libqt5svg5-dev libnotify-dev
+    sudo apt install qtbase5-dev libqt5svg5-dev
     ```
 
 - <b class="tab-title">Fedora</b>
     ```bash
     # Qt6
-    sudo dnf install qt6-qtbase-devel qt6-qtsvg-devel libnotify-devel
+    sudo dnf install qt6-qtbase-devel qt6-qtsvg-devel
 
     # Qt5
-    sudo dnf install qt5-qtbase-devel qt5-qtsvg-devel libnotify-devel
+    sudo dnf install qt5-qtbase-devel qt5-qtsvg-devel
+    ```
+
+- <b class="tab-title">macOS</b>
+    ```bash
+    brew install cmake ninja qtbase qtsvg
+    ```
+
+- <b class="tab-title">Windows (MSYS2 UCRT64)</b>
+    ```bash
+    pacman -S mingw-w64-ucrt-x86_64-cmake \
+      mingw-w64-ucrt-x86_64-ninja \
+      mingw-w64-ucrt-x86_64-toolchain \
+      mingw-w64-ucrt-x86_64-qt6-base \
+      mingw-w64-ucrt-x86_64-qt6-svg
     ```
 
 </div>
@@ -109,6 +126,18 @@ Execute the `tests` application:
 ```bash
 ./build/tests/test_tray
 ```
+
+## Icon formats
+
+The `icon` and `notification_icon` fields can be a path to an image file or an icon theme name. Relative file paths
+are resolved from the process working directory, so applications should copy or install icon files where the running
+process can find them.
+
+SVG, ICO, PNG, and Qt theme icon names are supported.
+
+For the most predictable cross-platform behavior, use SVG or PNG files for both tray and notification icons. ICO is
+supported by the Qt-backed paths tested by this project.
+Qt theme icons should be passed as icon name strings, such as `mail-message-new`.
 
 ## API
 
