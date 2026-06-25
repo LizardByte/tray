@@ -34,7 +34,7 @@ jobs:
 
       - name: Setup Release
         id: setup_release
-        uses: LizardByte/actions/actions/release_setup@200eaeb897a2b065a65cb6f16b41077432007490  # v2026.605.34721
+        uses: LizardByte/actions/actions/release_setup@a46850981292c4bbc0c41715f286ad95adaaaf4a  # v2026.625.20301
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -104,7 +104,7 @@ jobs:
 
       - name: Setup virtual desktop
         if: runner.os == 'Linux'
-        uses: LizardByte/actions/actions/virtual_desktop@200eaeb897a2b065a65cb6f16b41077432007490  # v2026.605.34721
+        uses: LizardByte/actions/actions/virtual_desktop@a46850981292c4bbc0c41715f286ad95adaaaf4a  # v2026.625.20301
         with:
           environment: mate
 
@@ -342,7 +342,7 @@ jobs:
     steps:
       - name: Create/Update GitHub Release
         if: needs.setup_release.outputs.publish_release == 'true'
-        uses: LizardByte/actions/actions/release_create@200eaeb897a2b065a65cb6f16b41077432007490  # v2026.605.34721
+        uses: LizardByte/actions/actions/release_create@a46850981292c4bbc0c41715f286ad95adaaaf4a  # v2026.625.20301
         with:
           allowUpdates: false
           artifacts: ''
