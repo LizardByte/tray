@@ -33,68 +33,58 @@ option(BUILD_EXAMPLE "Build example app" ${TRAY_IS_TOP_LEVEL})
 set(CMAKE_COLOR_MAKEFILE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-find_package(PkgConfig)
-
 file(GLOB TRAY_SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h"
 )
 
-set(TRAY_ICON_ICO "${CMAKE_CURRENT_SOURCE_DIR}/icons/icon.ico")
-set(TRAY_ICON_PNG "${CMAKE_CURRENT_SOURCE_DIR}/icons/icon.png")
-set(TRAY_ICON_SVG "${CMAKE_CURRENT_SOURCE_DIR}/icons/icon.svg")
-set(TRAY_ICON_FILES
-        "${TRAY_ICON_ICO}"
-        "${TRAY_ICON_PNG}"
-        "${TRAY_ICON_SVG}"
-)
+if(TRAY_IS_TOP_LEVEL)
+    set(TRAY_ICON_ICO "${CMAKE_CURRENT_SOURCE_DIR}/icons/icon.ico")
+    set(TRAY_ICON_PNG "${CMAKE_CURRENT_SOURCE_DIR}/icons/icon.png")
+    set(TRAY_ICON_SVG "${CMAKE_CURRENT_SOURCE_DIR}/icons/icon.svg")
+    set(TRAY_ICON2_ICO "${CMAKE_CURRENT_SOURCE_DIR}/icons/icon2.ico")
+    set(TRAY_ICON2_PNG "${CMAKE_CURRENT_SOURCE_DIR}/icons/icon2.png")
+    set(TRAY_ICON2_SVG "${CMAKE_CURRENT_SOURCE_DIR}/icons/icon2.svg")
+    set(TRAY_ICON_FILES
+            "${TRAY_ICON_ICO}"
+            "${TRAY_ICON_PNG}"
+            "${TRAY_ICON_SVG}"
+            "${TRAY_ICON2_ICO}"
+            "${TRAY_ICON2_PNG}"
+            "${TRAY_ICON2_SVG}"
+    )
 
-set(_TRAY_ICON_ICO "${TRAY_ICON_ICO}" CACHE INTERNAL "Default tray ICO icon path")
-set(_TRAY_ICON_PNG "${TRAY_ICON_PNG}" CACHE INTERNAL "Default tray PNG icon path")
-set(_TRAY_ICON_SVG "${TRAY_ICON_SVG}" CACHE INTERNAL "Default tray SVG icon path")
+    set(_TRAY_ICON_ICO "${TRAY_ICON_ICO}" CACHE INTERNAL "Default tray ICO icon path")
+    set(_TRAY_ICON_PNG "${TRAY_ICON_PNG}" CACHE INTERNAL "Default tray PNG icon path")
+    set(_TRAY_ICON_SVG "${TRAY_ICON_SVG}" CACHE INTERNAL "Default tray SVG icon path")
 
-# Copy default tray icon files into the output directory of the specified target.
-function(tray_copy_default_icons target_name)
-    if(NOT TARGET "${target_name}")
-        message(FATAL_ERROR "tray_copy_default_icons expected an existing target: ${target_name}")
-    endif()
-
-    foreach(icon_file IN LISTS TRAY_ICON_FILES)
-        add_custom_command(TARGET "${target_name}" POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${icon_file}"
-                "$<TARGET_FILE_DIR:${target_name}>"
-                COMMENT "Copying ${icon_file} to $<TARGET_FILE_DIR:${target_name}>")
-    endforeach()
-endfunction()
-
-if(WIN32)
-    list(APPEND TRAY_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/tray_windows.c")
-else()
-    if(UNIX)
-        if(APPLE)
-            find_library(COCOA Cocoa REQUIRED)
-            list(APPEND TRAY_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/tray_darwin.m")
-        else()
-            find_package(LibNotify REQUIRED)
-            find_package(Qt6 COMPONENTS Widgets Svg)
-            if(Qt6_FOUND)
-                set(TRAY_QT_VERSION 6)
-            else()
-                find_package(Qt5 REQUIRED COMPONENTS Widgets Svg)
-                set(TRAY_QT_VERSION 5)
-            endif()
-            set(TRAY_QT_VERSION  # cmake-lint: disable=C0103
-                    "${TRAY_QT_VERSION}"
-                    CACHE INTERNAL "Qt major version selected by tray"
-            )
-            set(CMAKE_AUTOMOC ON)
-            list(APPEND TRAY_SOURCES
-                    "${CMAKE_CURRENT_SOURCE_DIR}/src/tray_linux.cpp"
-                    "${CMAKE_CURRENT_SOURCE_DIR}/src/QtTrayMenu.cpp"
-            )
+    # Copy default tray icon files into the output directory of the specified target.
+    function(tray_copy_default_icons target_name)
+        if(NOT TARGET "${target_name}")
+            message(FATAL_ERROR "tray_copy_default_icons expected an existing target: ${target_name}")
         endif()
-    endif()
+
+        foreach(icon_file IN LISTS TRAY_ICON_FILES)
+            add_custom_command(TARGET "${target_name}" POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${icon_file}"
+                    "$<TARGET_FILE_DIR:${target_name}>"
+                    COMMENT "Copying ${icon_file} to $<TARGET_FILE_DIR:${target_name}>")
+        endforeach()
+    endfunction()
 endif()
+
+find_package(Qt6 COMPONENTS Widgets Svg)
+if(Qt6_FOUND)
+    set(TRAY_QT_VERSION 6)
+else()
+    find_package(Qt5 REQUIRED COMPONENTS Widgets Svg)
+    set(TRAY_QT_VERSION 5)
+endif()
+set(CMAKE_AUTOMOC ON)
+list(APPEND TRAY_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/tray_qt.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/QtTrayMenu.cpp"
+)
 
 add_library(${PROJECT_NAME} STATIC ${TRAY_SOURCES})
 set_property(TARGET ${PROJECT_NAME} PROPERTY C_STANDARD 99)
@@ -104,32 +94,23 @@ target_include_directories(${PROJECT_NAME}
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
         $<INSTALL_INTERFACE:include>)
 
-if(WIN32)
-    if(MSVC)
-        list(APPEND TRAY_COMPILE_OPTIONS "/MT$<$<CONFIG:Debug>:d>")
-    endif()
-else()
-    if(UNIX)
-        if(APPLE)
-            list(APPEND TRAY_EXTERNAL_LIBRARIES ${COCOA})
-        else()
-            if(TRAY_QT_VERSION EQUAL 6)
-                list(APPEND TRAY_EXTERNAL_LIBRARIES Qt6::Widgets Qt6::Svg)
-            else()
-                list(APPEND TRAY_EXTERNAL_LIBRARIES Qt5::Widgets Qt5::Svg)
-            endif()
-            list(APPEND TRAY_LIBNOTIFY=1)
-            list(APPEND TRAY_EXTERNAL_LIBRARIES ${LIBNOTIFY_LIBRARIES})
+if(WIN32 AND MSVC)
+    list(APPEND TRAY_COMPILE_OPTIONS "/MT$<$<CONFIG:Debug>:d>")
+endif()
 
-            include_directories(SYSTEM ${LIBNOTIFY_INCLUDE_DIRS})
-            link_directories(${LIBNOTIFY_LIBRARY_DIRS})
-        endif()
-    endif()
+if(TRAY_QT_VERSION EQUAL 6)
+    list(APPEND TRAY_EXTERNAL_LIBRARIES Qt6::Widgets Qt6::Svg)
+else()
+    list(APPEND TRAY_EXTERNAL_LIBRARIES Qt5::Widgets Qt5::Svg)
+endif()
+
+if(TRAY_COMPILE_DEFINITIONS)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE ${TRAY_COMPILE_DEFINITIONS})
 endif()
 
 add_library(tray::tray ALIAS ${PROJECT_NAME})
 
-if(BUILD_EXAMPLE)
+if(TRAY_IS_TOP_LEVEL AND BUILD_EXAMPLE)
     add_executable(tray_example "${CMAKE_CURRENT_SOURCE_DIR}/src/example.c")
     target_link_libraries(tray_example tray::tray)
     tray_copy_default_icons(tray_example)
@@ -142,7 +123,6 @@ if(TRAY_IS_TOP_LEVEL)
 endif()
 
 target_compile_options(${PROJECT_NAME} PRIVATE ${TRAY_COMPILE_OPTIONS})
-target_link_directories(${PROJECT_NAME} PRIVATE ${TRAY_EXTERNAL_DIRECTORIES})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${TRAY_EXTERNAL_LIBRARIES})
 
 #

@@ -101,7 +101,7 @@ void QtTrayMenu::onUpdate(struct tray *tray, const bool notify) {
     return;
   }
   this->trayStruct = tray;
-  if (const auto newIcon = QIcon(trayStruct->icon); !newIcon.isNull()) {
+  if (const auto newIcon = lookupIcon(trayStruct->icon); !newIcon.isNull()) {
     trayIcon->setIcon(newIcon);
   }
   trayIcon->setToolTip(QString::fromUtf8(trayStruct->tooltip));
@@ -250,33 +250,35 @@ struct tray_menu *QtTrayMenu::getTrayMenuItem(QAction *action) {  // NOSONAR(cpp
 }
 
 void QtTrayMenu::onMessageClicked() const {
-  if (notificationCallback != nullptr) {
-    notificationCallback();
+  if (notificationCallback == nullptr) {
+    return;
   }
+
+  auto callback = std::move(notificationCallback);
+  notificationCallback = nullptr;
+  callback();
 }
 
 void QtTrayMenu::configureAppMetadata(const QString &appName, const QString &appDisplayName, const QString &desktopName) const {
   const QString effective_name = !appName.isEmpty() ? appName : QStringLiteral("tray");
-  if (QApplication::applicationName().isEmpty()) {
+  if (!appName.isEmpty() || QApplication::applicationName().isEmpty() || QApplication::applicationName() == QStringLiteral("TrayMenuApp")) {
     QApplication::setApplicationName(effective_name);
   }
 
-  if (QApplication::applicationDisplayName().isEmpty()) {
-    if (!appDisplayName.isEmpty()) {
-      QApplication::setApplicationDisplayName(appDisplayName);
-    } else {
-      const QString display_name =
-        (trayStruct && trayStruct->tooltip) ? QString::fromUtf8(trayStruct->tooltip) : effective_name;
-      QApplication::setApplicationDisplayName(display_name);
-    }
-  }
-
-  if (!QApplication::desktopFileName().isEmpty()) {
-    return;
+  if (!appDisplayName.isEmpty()) {
+    QApplication::setApplicationDisplayName(appDisplayName);
+  } else if (QApplication::applicationDisplayName().isEmpty()) {
+    const QString display_name =
+      (trayStruct && trayStruct->tooltip) ? QString::fromUtf8(trayStruct->tooltip) : effective_name;
+    QApplication::setApplicationDisplayName(display_name);
   }
 
   if (!desktopName.isEmpty()) {
     QApplication::setDesktopFileName(desktopName);
+    return;
+  }
+
+  if (!QApplication::desktopFileName().isEmpty()) {
     return;
   }
 
@@ -346,4 +348,8 @@ void QtTrayMenu::clickMessage() const {
     return;
   }
   emit trayIcon->messageClicked();
+}
+
+void QtTrayMenu::clearMessageCallback() const {
+  notificationCallback = nullptr;
 }

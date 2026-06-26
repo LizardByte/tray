@@ -8,3 +8,9 @@
 #include <string>
 
 int setEnv(const std::string &name, const std::string &value);
+
+bool isGitHubActions();
+
+void dismissNativeNotifications();
+
+void waitForNativeNotificationTimeout();
