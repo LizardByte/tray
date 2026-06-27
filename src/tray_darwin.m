@@ -114,15 +114,24 @@ int tray_loop(int blocking) {
 }
 
 void tray_update(struct tray *tray) {
-  NSImage *image = [[NSImage alloc] initWithContentsOfFile:[NSString stringWithUTF8String:tray->icon]];
-  NSSize size = NSMakeSize(16, 16);
-  [image setSize:NSMakeSize(16, 16)];
-  statusItem.button.image = image;
-  [statusItem setMenu:_tray_menu(tray->menu)];
+  // This must run on the main thread
+  void (^updateBlock)(void) = ^{
+    NSImage *image = [[NSImage alloc] initWithContentsOfFile:[NSString stringWithUTF8String:tray->icon]];
+    NSSize size = NSMakeSize(16, 16);
+    [image setSize:NSMakeSize(16, 16)];
+    statusItem.button.image = image;
+    [statusItem setMenu:_tray_menu(tray->menu)];
 
-  // Set tooltip if provided
-  if (tray->tooltip != NULL) {
-    statusItem.button.toolTip = [NSString stringWithUTF8String:tray->tooltip];
+    // Set tooltip if provided
+    if (tray->tooltip != NULL) {
+      statusItem.button.toolTip = [NSString stringWithUTF8String:tray->tooltip];
+    }
+  };
+
+  if ([NSThread isMainThread]) {
+    updateBlock();
+  } else {
+    dispatch_sync(dispatch_get_main_queue(), updateBlock);
   }
 }
 
