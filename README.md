@@ -1,8 +1,20 @@
-# Overview
+<div align="center">
+  <img
+    src="tray.svg"
+    alt="tray icon"
+    width="256"
+  />
+  <h1 align="center">tray</h1>
+  <h4 align="center">Cross-platform implementation of a system tray icon with a popup menu and notifications.</h4>
+</div>
 
-[![GitHub Workflow Status (CI)](https://img.shields.io/github/actions/workflow/status/lizardbyte/tray/ci.yml.svg?branch=master&label=CI%20build&logo=github&style=for-the-badge)](https://github.com/LizardByte/tray/actions/workflows/ci.yml?query=branch%3Amaster)
-[![Codecov](https://img.shields.io/codecov/c/gh/LizardByte/tray?token=HSX66JNEOL&style=for-the-badge&logo=codecov&label=codecov)](https://codecov.io/gh/LizardByte/tray)
-[![GitHub stars](https://img.shields.io/github/stars/lizardbyte/tray.svg?logo=github&style=for-the-badge)](https://github.com/LizardByte/tray)
+<div align="center">
+  <a href="https://github.com/LizardByte/tray"><img src="https://img.shields.io/github/stars/lizardbyte/tray.svg?logo=github&style=for-the-badge" alt="GitHub stars"></a>
+  <a href="https://github.com/LizardByte/tray/actions/workflows/ci.yml?query=branch%3Amaster"><img src="https://img.shields.io/github/actions/workflow/status/lizardbyte/tray/ci.yml.svg?branch=master&label=CI%20build&logo=github&style=for-the-badge" alt="GitHub Workflow Status (CI)"></a>
+  <a href="https://docs.lizardbyte.dev/projects/tray"><img src="https://img.shields.io/readthedocs/c-tray.svg?label=Docs&style=for-the-badge&logo=readthedocs" alt="Read the Docs"></a>
+  <a href="https://codecov.io/gh/LizardByte/tray"><img src="https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fapp.lizardbyte.dev%2Fdashboard%2Fshields%2Fcodecov%2Ftray.json&style=for-the-badge&logo=codecov" alt="Codecov"></a>
+  <a href="https://sonarcloud.io/project/overview?id=LizardByte_tray"><img src="https://img.shields.io/sonar/quality_gate/LizardByte_tray.svg?server=https%3A%2F%2Fsonarcloud.io&style=for-the-badge&logo=sonarqubecloud&label=sonarcloud" alt="SonarCloud"></a>
+</div>
 
 ## About
 
