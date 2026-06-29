@@ -172,14 +172,14 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F generates subclasses that need access
 
     // Skip tests if screenshot tooling is not available
     if (!ensureScreenshotReady()) {
-      GTEST_SKIP() << "Screenshot tooling missing: " << screenshotUnavailableReason;
+      GTEST_SKIP() << "Screenshot tooling missing: " << screenshotUnavailableReason();
     }
     if (screenshot::output_root().empty()) {
       GTEST_SKIP() << "Screenshot output path not initialized";
     }
 
     // Ensure icon files exist in test binary directory
-    std::filesystem::path projectRoot = testBinaryDir.parent_path();
+    std::filesystem::path projectRoot = testBinaryDir().parent_path();
     auto ensureIconInTestDir = [&projectRoot, this](const char *iconName) {
       std::filesystem::path iconSource;
 
@@ -192,7 +192,7 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F generates subclasses that need access
       }
 
       if (!iconSource.empty()) {
-        std::filesystem::path iconDest = testBinaryDir / iconName;
+        std::filesystem::path iconDest = testBinaryDir() / iconName;
         if (!std::filesystem::exists(iconDest)) {
           std::error_code ec;
           std::filesystem::copy_file(iconSource, iconDest, ec);
