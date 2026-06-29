@@ -1,5 +1,4 @@
 // standard includes
-#include <array>
 #include <filesystem>
 #include <mutex>
 
@@ -20,19 +19,10 @@
 /**
  * @brief Base class for tests.
  *
- * This class provides a base test fixture for all tests.
- *
- * ``cout``, ``stderr``, and ``stdout`` are redirected to a buffer, and the buffer is printed if the test fails.
- *
- * @todo Retain the color of the original output.
+ * This class provides a base test fixture for all tests and adds tray-specific helpers.
  */
 class BaseTest: public ::lizardbyte::common::testing::BaseTest {
 protected:
-  // https://stackoverflow.com/a/58369622/11214013
-
-  // we can possibly use some internal googletest functions to capture stdout and stderr, but I have not tested this
-  // https://stackoverflow.com/a/33186201/11214013
-
   BaseTest() = default;
 
   ~BaseTest() override = default;
@@ -61,38 +51,10 @@ protected:
     initializeScreenshotsOnce();
   }
 
-  void TearDown() override {
-    const ::testing::TestInfo *const test_info = ::testing::UnitTest::GetInstance()->current_test_info();
-    const bool failed = test_info != nullptr && test_info->result()->Failed();
-
-    ::lizardbyte::common::testing::BaseTest::TearDown();
-
-    if (failed) {
-      std::cout << std::endl
-                << "Captured stdout:" << std::endl
-                << stdout_buffer.str() << std::endl
-                << "Captured stderr:" << std::endl
-                << stderr_buffer.str() << std::endl;
-    }
-
-    if (pipe_stdout) {
-      pclose(pipe_stdout);
-      pipe_stdout = nullptr;
-    }
-    if (pipe_stderr) {
-      pclose(pipe_stderr);
-      pipe_stderr = nullptr;
-    }
-  }
-
   // functions and variables
   std::vector<std::string> testArgs;  // CLI arguments used
   std::filesystem::path testBinary;  // full path of this binary
   std::filesystem::path testBinaryDir;  // full directory of this binary
-  std::stringstream stdout_buffer;  // declare stdout_buffer
-  std::stringstream stderr_buffer;  // declare stderr_buffer
-  FILE *pipe_stdout {nullptr};
-  FILE *pipe_stderr {nullptr};
   bool screenshotsReady {false};
 
   void initializeScreenshotsOnce() {
@@ -105,28 +67,6 @@ protected:
       }
       screenshot::initialize(root);
     });
-  }
-
-  int exec(const char *cmd) {
-    std::array<char, 128> buffer {};
-    pipe_stdout = popen((std::string(cmd) + " 2>&1").c_str(), "r");
-    pipe_stderr = popen((std::string(cmd) + " 2>&1").c_str(), "r");
-    if (!pipe_stdout || !pipe_stderr) {
-      throw std::runtime_error("popen() failed!");
-    }
-    while (fgets(buffer.data(), buffer.size(), pipe_stdout) != nullptr) {
-      stdout_buffer << buffer.data();
-    }
-    while (fgets(buffer.data(), buffer.size(), pipe_stderr) != nullptr) {
-      stderr_buffer << buffer.data();
-    }
-    int returnCode = pclose(pipe_stdout);
-    pipe_stdout = nullptr;
-    if (returnCode != 0) {
-      std::cout << "Error: " << stderr_buffer.str() << std::endl
-                << "Return code: " << returnCode << std::endl;
-    }
-    return returnCode;
   }
 
   bool ensureScreenshotReady() {
