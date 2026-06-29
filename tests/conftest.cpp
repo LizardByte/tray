@@ -4,12 +4,12 @@
 #include <mutex>
 
 // lib includes
-#include <gtest/gtest.h>
+#define LIZARDBYTE_COMMON_TESTING_KEEP_GTEST_TEST
+#define LIZARDBYTE_COMMON_TESTING_NO_GLOBAL_ALIASES
+#include <lizardbyte/common/testing.h>
 
 // test includes
 #include "tests/screenshot_utils.h"
-#include "tests/utils.h"
-
 // Undefine the original TEST macro
 #undef TEST
 
@@ -26,7 +26,7 @@
  *
  * @todo Retain the color of the original output.
  */
-class BaseTest: public ::testing::Test {
+class BaseTest: public ::lizardbyte::common::testing::BaseTest {
 protected:
   // https://stackoverflow.com/a/58369622/11214013
 
@@ -38,10 +38,12 @@ protected:
   ~BaseTest() override = default;
 
   void SetUp() override {
+    ::lizardbyte::common::testing::BaseTest::SetUp();
+
     // todo: only run this one time, instead of every time a test is run
     // see: https://stackoverflow.com/questions/2435277/googletest-accessing-the-environment-from-a-test
     // get command line args from the test executable
-    testArgs = ::testing::internal::GetArgvs();
+    testArgs = getArgs();
 
     // then get the directory of the test executable
     // std::string path = ::testing::internal::GetArgvs()[0];
@@ -57,30 +59,22 @@ protected:
     }
 
     initializeScreenshotsOnce();
-
-    sbuf = std::cout.rdbuf();  // save cout buffer (std::cout)
-    std::cout.rdbuf(cout_buffer.rdbuf());  // redirect cout to buffer (std::cout)
   }
 
   void TearDown() override {
-    std::cout.rdbuf(sbuf);  // restore cout buffer
-
-    // get test info
     const ::testing::TestInfo *const test_info = ::testing::UnitTest::GetInstance()->current_test_info();
+    const bool failed = test_info != nullptr && test_info->result()->Failed();
 
-    if (test_info->result()->Failed()) {
+    ::lizardbyte::common::testing::BaseTest::TearDown();
+
+    if (failed) {
       std::cout << std::endl
-                << "Test failed: " << test_info->name() << std::endl
-                << std::endl
-                << "Captured cout:" << std::endl
-                << cout_buffer.str() << std::endl
                 << "Captured stdout:" << std::endl
                 << stdout_buffer.str() << std::endl
                 << "Captured stderr:" << std::endl
                 << stderr_buffer.str() << std::endl;
     }
 
-    sbuf = nullptr;  // clear sbuf
     if (pipe_stdout) {
       pclose(pipe_stdout);
       pipe_stdout = nullptr;
@@ -95,10 +89,8 @@ protected:
   std::vector<std::string> testArgs;  // CLI arguments used
   std::filesystem::path testBinary;  // full path of this binary
   std::filesystem::path testBinaryDir;  // full directory of this binary
-  std::stringstream cout_buffer;  // declare cout_buffer
   std::stringstream stdout_buffer;  // declare stdout_buffer
   std::stringstream stderr_buffer;  // declare stderr_buffer
-  std::streambuf *sbuf {nullptr};
   FILE *pipe_stdout {nullptr};
   FILE *pipe_stderr {nullptr};
   bool screenshotsReady {false};
@@ -171,32 +163,6 @@ protected:
   std::string screenshotUnavailableReason;
 };
 
-class LinuxTest: public BaseTest {
-protected:
-  void SetUp() override {
-#ifndef __linux__
-    GTEST_SKIP_("Skipping, this test is for Linux only.");
-#endif
-    BaseTest::SetUp();
-  }
-};
-
-class MacOSTest: public BaseTest {
-protected:
-  void SetUp() override {
-#if !defined(__APPLE__) || !defined(__MACH__)
-    GTEST_SKIP_("Skipping, this test is for macOS only.");
-#endif
-    BaseTest::SetUp();
-  }
-};
-
-class WindowsTest: public BaseTest {
-protected:
-  void SetUp() override {  // NOSONAR(cpp:S1185) - contains platform skip logic, not a trivial override
-#ifndef _WIN32
-    GTEST_SKIP_("Skipping, this test is for Windows only.");
-#endif
-    BaseTest::SetUp();
-  }
-};
+using LinuxTest = ::lizardbyte::common::testing::LinuxTest;
+using MacOSTest = ::lizardbyte::common::testing::MacOSTest;
+using WindowsTest = ::lizardbyte::common::testing::WindowsTest;
