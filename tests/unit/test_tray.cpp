@@ -99,7 +99,7 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F generates subclasses that need access
   }
 
   // Dismisses the open menu from a background thread.
-  void closeMenu() {
+  void closeMenu() const {
 #if defined(TRAY_WINAPI)
     PostMessage(tray_get_hwnd(), WM_CANCELMODE, 0, 0);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -115,7 +115,7 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F generates subclasses that need access
   }
 
   // Capture a screenshot while the tray menu is open, then dismiss and exit.
-  void captureMenuStateAndExit(const char *screenshotName) {
+  void captureMenuStateAndExit(const char *screenshotName) const {
     std::atomic_bool exitRequested {false};
     std::thread capture_thread([this, screenshotName, &exitRequested]() {  // NOSONAR(cpp:S6168) - std::jthread is unavailable on AppleClang 17/libc++ used in CI
       EXPECT_TRUE(captureScreenshot(screenshotName));
@@ -172,14 +172,14 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F generates subclasses that need access
 
     // Skip tests if screenshot tooling is not available
     if (!ensureScreenshotReady()) {
-      GTEST_SKIP() << "Screenshot tooling missing: " << screenshotUnavailableReason;
+      GTEST_SKIP() << "Screenshot tooling missing: " << screenshotUnavailableReason();
     }
     if (screenshot::output_root().empty()) {
       GTEST_SKIP() << "Screenshot output path not initialized";
     }
 
     // Ensure icon files exist in test binary directory
-    std::filesystem::path projectRoot = testBinaryDir.parent_path();
+    std::filesystem::path projectRoot = testBinaryDir().parent_path();
     auto ensureIconInTestDir = [&projectRoot, this](const char *iconName) {
       std::filesystem::path iconSource;
 
@@ -192,7 +192,7 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F generates subclasses that need access
       }
 
       if (!iconSource.empty()) {
-        std::filesystem::path iconDest = testBinaryDir / iconName;
+        std::filesystem::path iconDest = testBinaryDir() / iconName;
         if (!std::filesystem::exists(iconDest)) {
           std::error_code ec;
           std::filesystem::copy_file(iconSource, iconDest, ec);
@@ -226,7 +226,7 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F generates subclasses that need access
 
   // Process pending events to allow tray icon to appear.
   // Call this ONLY before screenshots to ensure the icon is visible.
-  void WaitForTrayReady() {
+  void WaitForTrayReady() const {
 #if defined(TRAY_QT)
     for (int i = 0; i < 100; i++) {
       tray_loop(0);

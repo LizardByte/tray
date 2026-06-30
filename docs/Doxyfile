@@ -24,7 +24,9 @@
 # project metadata
 DOCSET_BUNDLE_ID = dev.lizardbyte.tray
 DOCSET_PUBLISHER_ID = dev.lizardbyte.tray.documentation
-PROJECT_BRIEF = "Cross-platform, super tiny C99 implementation of a system tray icon with a popup menu and notifications."
+PROJECT_BRIEF = "Cross-platform implementation of a system tray icon with a popup menu and notifications."
+PROJECT_ICON = ../tray.svg
+PROJECT_LOGO = ../tray.svg
 PROJECT_NAME = tray
 
 # project specific settings

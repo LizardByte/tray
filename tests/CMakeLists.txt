@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.13)
 project(test_tray)
 
 # Add GoogleTest directory to the project
-set(GTEST_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../third-party/googletest")
+set(GTEST_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../third-party/lizardbyte-common/third-party/googletest")
 
 # For Windows: prevent overriding parent compiler/linker runtime settings.
 if(WIN32)
@@ -16,6 +16,13 @@ set(INSTALL_GMOCK OFF)
 add_subdirectory("${GTEST_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/googletest")
 include_directories("${GTEST_SOURCE_DIR}/googletest/include" "${GTEST_SOURCE_DIR}")
 
+set(LIZARDBYTE_COMMON_BUILD_TEST_SUPPORT ON CACHE BOOL "Build lizardbyte-common GoogleTest support helpers" FORCE)
+if(NOT TARGET lizardbyte::common)
+    add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../third-party/lizardbyte-common"
+                     "${CMAKE_CURRENT_BINARY_DIR}/lizardbyte-common")
+elseif(NOT TARGET lizardbyte::test_support)
+    message(FATAL_ERROR "tray tests require lizardbyte::test_support")
+endif()
 # extra libraries for tests
 if (APPLE)
     set(TEST_LIBS "-framework Cocoa")
@@ -25,7 +32,6 @@ endif()
 
 file(GLOB_RECURSE TEST_SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/conftest.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/utils.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/screenshot_utils.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/unit/test_*.cpp"
 )
@@ -40,6 +46,7 @@ target_include_directories(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME}
         ${TEST_LIBS}
         tray::tray
+        lizardbyte::test_support
         gtest
         gtest_main  # if we use this we don't need our own main function
 )
