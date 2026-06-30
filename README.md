@@ -16,7 +16,9 @@
   <a href="https://sonarcloud.io/project/overview?id=LizardByte_tray"><img src="https://img.shields.io/sonar/quality_gate/LizardByte_tray.svg?server=https%3A%2F%2Fsonarcloud.io&style=for-the-badge&logo=sonarqubecloud&label=sonarcloud" alt="SonarCloud"></a>
 </div>
 
-## About
+# Overview
+
+## ℹ️ About
 
 Cross-platform, super tiny C99 implementation of a system tray icon with a popup menu and notifications.
 
@@ -32,23 +34,29 @@ This fork adds the following features:
 - refactored code, e.g., moved source code into the `src` directory
 - doxygen documentation and readthedocs configuration
 
-## Screenshots
+## 🖼️ Screenshots
 
 <div class="tabbed">
-
-- <b class="tab-title">Linux</b>![linux](docs/images/screenshot_linux.png)
-- <b class="tab-title">macOS</b>![macOS](docs/images/screenshot_macos.png)
-- <b class="tab-title">Windows</b>![windows](docs/images/screenshot_windows.png)
-
+  <ul>
+    <li><b class="tab-title">Linux</b><br>
+      ![linux](docs/images/screenshot_linux.png)
+    </li>
+    <li><b class="tab-title">macOS</b><br>
+      ![macOS](docs/images/screenshot_macos.png)
+    </li>
+    <li><b class="tab-title">Windows</b><br>
+      ![windows](docs/images/screenshot_windows.png)
+    </li>
+  </ul>
 </div>
 
-## Supported platforms
+## 🖥️ Supported platforms
 
 * Linux/Qt (Qt5 or Qt6 Widgets)
 * Windows XP or newer (shellapi.h)
 * MacOS (Cocoa/AppKit)
 
-## Prerequisites
+## 📋 Prerequisites
 
 * CMake
 * [Ninja](https://ninja-build.org/), to have the same build commands on all platforms.
@@ -88,7 +96,7 @@ Install either Qt6 _or_ Qt5 as well as libnotify development packages. The Linux
 
 </div>
 
-## Building
+## 🛠️ Building
 
 ```bash
 mkdir -p build
@@ -96,7 +104,7 @@ cmake -G Ninja -B build -S .
 ninja -C build
 ```
 
-## Python Tooling
+## ⚙️ Python Tooling
 
 Install [uv](https://docs.astral.sh/uv/) and initialize the shared tooling submodule:
 
@@ -106,7 +114,7 @@ uv run --project third-party/lizardbyte-common --locked --only-group lint-c \
   python third-party/lizardbyte-common/scripts/update_clang_format.py
 ```
 
-## Demo
+## ▶️ Demo
 
 Execute the `tray_example` application:
 
@@ -114,7 +122,7 @@ Execute the `tray_example` application:
 ./build/tray_example
 ```
 
-## Tests
+## ✅ Tests
 
 Execute the `tests` application:
 
@@ -122,7 +130,7 @@ Execute the `tests` application:
 ./build/tests/test_tray
 ```
 
-## API
+## 📚 API
 
 Tray structure defines an icon and a menu.
 Menu is a NULL-terminated array of items.
@@ -157,7 +165,7 @@ All functions are meant to be called from the UI thread only.
 Menu arrays must be terminated with a NULL item, e.g. the last item in the
 array must have text field set to NULL.
 
-## License
+## 📄 License
 
 This software is distributed under [MIT license](http://www.opensource.org/licenses/mit-license.php),
 so feel free to integrate it in your commercial products.
