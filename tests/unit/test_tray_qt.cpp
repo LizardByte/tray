@@ -7,8 +7,11 @@
 
 // standard includes
 #include <array>
+#include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstring>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -128,6 +131,41 @@ TEST_F(TrayQtCoverageTest, ApiCallsAreNoOpsBeforeInit) {
 
   EXPECT_EQ(menu_callback_count(), 0);
   EXPECT_EQ(notification_callback_count(), 0);
+}
+
+TEST_F(TrayQtCoverageTest, UpdateFromWorkerThreadWaitsForApplicationThread) {
+  InitTray();
+
+  std::array<struct tray_menu, 2> workerMenu = {{{.text = "Worker item", .cb = menu_item_cb}, {.text = nullptr}}};
+  std::array<struct tray_menu, 1> emptyMenu = {{{.text = nullptr}}};
+  trayData->menu = workerMenu.data();
+
+  std::atomic<bool> workerStarted {false};
+  std::atomic<bool> updateReturned {false};
+  std::thread worker([&]() {
+    workerStarted.store(true, std::memory_order_release);
+    tray_update(trayData);
+    trayData->menu = emptyMenu.data();
+    updateReturned.store(true, std::memory_order_release);
+  });
+
+  while (!workerStarted.load(std::memory_order_acquire)) {
+    std::this_thread::yield();
+  }
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  EXPECT_FALSE(updateReturned.load(std::memory_order_acquire));
+
+  while (!updateReturned.load(std::memory_order_acquire)) {
+    PumpEvents(1);
+  }
+  worker.join();
+
+  // Process any asynchronously queued update before checking the resulting menu.
+  PumpEvents();
+  tray_simulate_menu_item_click(0);
+  PumpEvents();
+  EXPECT_EQ(menu_callback_count(), 1);
 }
 
 TEST_F(TrayQtCoverageTest, SimulateMenuClickWithNullMenuDoesNothing) {

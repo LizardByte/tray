@@ -9,7 +9,9 @@
 #include <QByteArray>
 #include <QDebug>
 #include <QMessageLogContext>
+#include <QMetaObject>
 #include <QString>
+#include <QThread>
 
 // local includes
 #include "QtTrayMenu.h"
@@ -181,8 +183,20 @@ extern "C" {
     if (tray_qt::qt_tray_menu == nullptr) {
       return;
     }
-    tray_qt::qt_tray_menu->update(tray, false);
-    tray_qt::notify(tray);
+
+    auto *const tray_menu = tray_qt::qt_tray_menu.get();
+    const auto apply_update = [tray_menu, tray]() {
+      tray_menu->update(tray, false);
+      tray_qt::notify(tray);
+    };
+
+    if (QThread::currentThread() == tray_menu->thread()) {
+      apply_update();
+      return;
+    }
+
+    // Keep the C API synchronous so callers can safely reuse or release tray data after this function returns.
+    (void) QMetaObject::invokeMethod(tray_menu, apply_update, Qt::BlockingQueuedConnection);
   }
 
   void tray_exit(void) {
