@@ -66,5 +66,5 @@ namespace tray_qt::windows {
    *
    * @param app The tray QApplication instance.
    */
-  void configure_appearance(QApplication *app);
+  void configure_appearance(const QApplication *app);
 }  // namespace tray_qt::windows

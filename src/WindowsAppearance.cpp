@@ -32,7 +32,7 @@
 
 namespace tray_qt::windows {
   color_scheme_e color_scheme_from_apps_use_light_theme(std::optional<std::uint32_t> apps_use_light_theme) {
-    if (!apps_use_light_theme) {
+    if (!apps_use_light_theme.has_value()) {
       return color_scheme_e::unknown;
     }
 
@@ -134,7 +134,7 @@ namespace tray_qt::windows {
 #endif
   }
 
-  void configure_appearance(QApplication *app) {
+  void configure_appearance(const QApplication *app) {
     if (app == nullptr) {
       qWarning("QtTrayMenu: cannot configure Windows appearance without a QApplication");
       return;
@@ -147,13 +147,13 @@ namespace tray_qt::windows {
       if (auto *windows_11_style = QStyleFactory::create(QStringLiteral("windows11"))) {
         QApplication::setStyle(windows_11_style);
       } else {
-        qWarning() << "QtTrayMenu: the Qt Windows 11 style is unavailable; using" << app->style()->objectName();
+        qWarning() << "QtTrayMenu: the Qt Windows 11 style is unavailable; using" << QApplication::style()->objectName();
       }
     }
 #else
     qWarning("QtTrayMenu: mirroring the interactive user's color scheme requires Qt 6.8 or newer");
 #endif
 
-    qInfo() << "QtTrayMenu: using Qt style" << app->style()->objectName();
+    qInfo() << "QtTrayMenu: using Qt style" << QApplication::style()->objectName();
   }
 }  // namespace tray_qt::windows

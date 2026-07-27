@@ -171,23 +171,23 @@ TEST_F(TrayQtCoverageTest, UpdateFromWorkerThreadWaitsForApplicationThread) {
   std::array<struct tray_menu, 1> emptyMenu = {{{.text = nullptr}}};
   trayData->menu = workerMenu.data();
 
-  std::atomic<bool> workerStarted {false};
-  std::atomic<bool> updateReturned {false};
-  std::thread worker([&]() {
-    workerStarted.store(true, std::memory_order_release);
+  std::atomic workerStarted {false};
+  std::atomic updateReturned {false};
+  std::thread worker([this, &emptyMenu, &updateReturned, &workerStarted]() {
+    workerStarted.store(true);
     tray_update(trayData);
     trayData->menu = emptyMenu.data();
-    updateReturned.store(true, std::memory_order_release);
+    updateReturned.store(true);
   });
 
-  while (!workerStarted.load(std::memory_order_acquire)) {
+  while (!workerStarted.load()) {
     std::this_thread::yield();
   }
 
   std::this_thread::sleep_for(std::chrono::milliseconds(50));
-  EXPECT_FALSE(updateReturned.load(std::memory_order_acquire));
+  EXPECT_FALSE(updateReturned.load());
 
-  while (!updateReturned.load(std::memory_order_acquire)) {
+  while (!updateReturned.load()) {
     PumpEvents(1);
   }
   worker.join();
