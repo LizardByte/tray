@@ -9,12 +9,18 @@
 #include <string>
 #include <thread>
 
+// lib includes
+#include <lizardbyte/common/env.h>
+
 #if defined(_WIN32) || defined(_WIN64)
   #include <Windows.h>
 #endif
 
 // local includes
 #include "src/tray.h"
+
+// test includes
+#include "tests/notification_utils.h"
 #include "tests/screenshot_utils.h"
 
 constexpr const char *TRAY_ICON_ICO = "icon.ico";
@@ -247,10 +253,10 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F generates subclasses that need access
     }
   }
 
-  void WaitForNotificationReady() {
+  void WaitForNotificationReady() const {
     WaitForTrayReady();
 #if defined(_WIN32)
-    if (isGitHubActions()) {
+    if (lizardbyte::common::is_github_actions()) {
       for (int i = 0; i < 40; i++) {
         tray_loop(0);
         std::this_thread::sleep_for(std::chrono::milliseconds(50));

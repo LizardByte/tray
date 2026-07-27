@@ -1,5 +1,6 @@
 // test includes
 #include "tests/conftest.cpp"
+#include "tests/notification_utils.h"
 
 // local includes
 #include "src/tray.h"
@@ -86,7 +87,7 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F requires protected fixture visibility
     ASSERT_EQ(initResult, 0);
   }
 
-  void PumpEvents(int iterations = 20) {
+  void PumpEvents(int iterations = 20) const {
     for (int i = 0; i < iterations; i++) {
       tray_loop(0);
     }
