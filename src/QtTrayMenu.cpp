@@ -15,6 +15,10 @@
 // local includes
 #include "QtTrayMenu.h"
 
+#if defined(_WIN32)
+  #include "WindowsAppearance.h"
+#endif
+
 namespace {
   int defaultArgc = 1;  // NOSONAR(cpp:S5421): This is required for QApplication's argc/argv constructor
   char defaultArgv0[] = "TrayMenuApp";  // NOSONAR(cpp:S5421): This is required for QApplication's argc/argv constructor
@@ -41,6 +45,9 @@ QtTrayMenu::QtTrayMenu(int argc, char **argv, QObject *parent, const bool debug)
       app = new QApplication(argc, argv);  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
     }
   }
+#if defined(_WIN32)
+  tray_qt::windows::configure_appearance(app);
+#endif
   if (debug) {
     app->installEventFilter(this);
   }
@@ -161,6 +168,11 @@ void QtTrayMenu::onExitRequested() {
 void QtTrayMenu::updateMenu(struct tray_menu *items) {
   // Create and setup new tray menu instance
   const auto newTrayTopMenu = new QMenu();  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
+#if defined(_WIN32)
+  connect(newTrayTopMenu, &QMenu::aboutToShow, this, []() {
+    tray_qt::windows::sync_color_scheme();
+  });
+#endif
   trayIcon->setContextMenu(newTrayTopMenu);
   // Fill new tray menu instance
   createMenu(items, newTrayTopMenu);

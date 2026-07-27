@@ -85,6 +85,12 @@ list(APPEND TRAY_SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/src/tray_qt.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/QtTrayMenu.cpp"
 )
+if(WIN32)
+    list(APPEND TRAY_SOURCES
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/WindowsAppearance.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/WindowsAppearance.h"
+    )
+endif()
 
 add_library(${PROJECT_NAME} STATIC ${TRAY_SOURCES})
 set_property(TARGET ${PROJECT_NAME} PROPERTY C_STANDARD 99)
@@ -102,6 +108,9 @@ if(TRAY_QT_VERSION EQUAL 6)
     list(APPEND TRAY_EXTERNAL_LIBRARIES Qt6::Widgets Qt6::Svg)
 else()
     list(APPEND TRAY_EXTERNAL_LIBRARIES Qt5::Widgets Qt5::Svg)
+endif()
+if(WIN32)
+    list(APPEND TRAY_EXTERNAL_LIBRARIES advapi32 Wtsapi32)
 endif()
 
 if(TRAY_COMPILE_DEFINITIONS)

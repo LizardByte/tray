@@ -10,9 +10,16 @@
 #include <atomic>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
+#include <optional>
 #include <thread>
 #include <vector>
+
+#if defined(_WIN32)
+  // local includes
+  #include "src/WindowsAppearance.h"
+#endif
 
 namespace {
   int &menu_callback_count() {
@@ -102,6 +109,30 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F requires protected fixture visibility
   std::vector<std::byte> trayDataStorage {};
   struct tray *trayData = nullptr;
 };
+
+#if defined(_WIN32)
+TEST(WindowsAppearanceTest, AppsUseLightThemeMapsToColorScheme) {
+  using tray_qt::windows::color_scheme_e;
+  using tray_qt::windows::color_scheme_from_apps_use_light_theme;
+
+  EXPECT_EQ(color_scheme_from_apps_use_light_theme(std::nullopt), color_scheme_e::unknown);
+  EXPECT_EQ(color_scheme_from_apps_use_light_theme(std::uint32_t {0}), color_scheme_e::dark);
+  EXPECT_EQ(color_scheme_from_apps_use_light_theme(std::uint32_t {1}), color_scheme_e::light);
+  EXPECT_EQ(color_scheme_from_apps_use_light_theme(std::uint32_t {2}), color_scheme_e::light);
+}
+
+TEST_F(TrayQtCoverageTest, MirrorsInteractiveUserWindowsAppearance) {
+  const auto expected_color_scheme = tray_qt::windows::interactive_user_color_scheme();
+  InitTray();
+
+  if (expected_color_scheme != tray_qt::windows::color_scheme_e::unknown) {
+    EXPECT_EQ(tray_qt::windows::current_color_scheme(), expected_color_scheme);
+  }
+  if (tray_qt::windows::should_use_windows_11_style()) {
+    EXPECT_TRUE(tray_qt::windows::windows_11_style_is_active());
+  }
+}
+#endif
 
 TEST_F(TrayQtCoverageTest, SimulateMenuClickSkipsNonTriggerableActions) {
   InitTray();
