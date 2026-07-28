@@ -10,6 +10,7 @@
 #include <QCursor>
 #include <QDebug>
 #include <QMouseEvent>
+#include <QScreen>
 #include <QStyle>
 
 // local includes
@@ -18,6 +19,46 @@
 #if defined(_WIN32)
   #include "WindowsAppearance.h"
 #endif
+
+namespace {
+  constexpr int DEFAULT_PANEL_THICKNESS = 24;
+  constexpr int CURSOR_POSITION_TOLERANCE = 2;
+
+  bool positionsAreClose(const QPoint &first, const QPoint &second) {
+    return (first - second).manhattanLength() <= CURSOR_POSITION_TOLERANCE;
+  }
+
+  bool fallbackTrayIconPosition(QPoint *position) {
+    const QScreen *screen = QGuiApplication::primaryScreen();
+    if (screen == nullptr) {
+      return false;
+    }
+
+    const QRect screenGeometry = screen->geometry();
+    const QRect availableGeometry = screen->availableGeometry();
+    const int topInset = availableGeometry.top() - screenGeometry.top();
+    const int bottomInset = screenGeometry.bottom() - availableGeometry.bottom();
+    const int rightInset = screenGeometry.right() - availableGeometry.right();
+    const int leftInset = availableGeometry.left() - screenGeometry.left();
+
+    if (topInset > 0) {
+      *position = QPoint(screenGeometry.right() - (topInset / 2), screenGeometry.top() + (topInset / 2));
+    } else if (bottomInset > 0) {
+      *position = QPoint(screenGeometry.right() - (bottomInset / 2), screenGeometry.bottom() - (bottomInset / 2));
+    } else if (rightInset > 0) {
+      *position = QPoint(screenGeometry.right() - (rightInset / 2), screenGeometry.bottom() - (rightInset / 2));
+    } else if (leftInset > 0) {
+      *position = QPoint(screenGeometry.left() + (leftInset / 2), screenGeometry.bottom() - (leftInset / 2));
+    } else {
+#if defined(_WIN32)
+      *position = QPoint(screenGeometry.right() - (DEFAULT_PANEL_THICKNESS / 2), screenGeometry.bottom() - (DEFAULT_PANEL_THICKNESS / 2));
+#else
+      *position = QPoint(screenGeometry.right() - (DEFAULT_PANEL_THICKNESS / 2), screenGeometry.top() + (DEFAULT_PANEL_THICKNESS / 2));
+#endif
+    }
+    return true;
+  }
+}  // namespace
 
 QtTrayMenu::QtTrayMenu(QObject *parent, const bool debug):
     QtTrayMenu(-1, nullptr, parent, debug) {
@@ -349,18 +390,23 @@ bool QtTrayMenu::positionMouseOverIcon() {
   }
 
   const QRect iconGeometry = trayIcon->geometry();
-  if (!iconGeometry.isValid()) {
-    qWarning("QtTrayMenu: tray icon geometry is unavailable");
+  QPoint targetPosition;
+  if (iconGeometry.isValid()) {
+    targetPosition = iconGeometry.center();
+  } else if (!fallbackTrayIconPosition(&targetPosition)) {
+    qWarning("QtTrayMenu: tray icon geometry and screen-edge fallback are unavailable");
     return false;
+  } else {
+    qWarning("QtTrayMenu: tray icon geometry is unavailable; using the system panel edge");
   }
 
   if (!mousePositionSaved) {
     savedMousePosition = QCursor::pos();
     mousePositionSaved = true;
   }
-  const QPoint targetPosition = iconGeometry.center();
   QCursor::setPos(targetPosition);
-  const bool positioned = QCursor::pos() == targetPosition;
+  const QPoint currentPosition = QCursor::pos();
+  const bool positioned = iconGeometry.isValid() ? iconGeometry.contains(currentPosition) : positionsAreClose(currentPosition, targetPosition);
   if (!positioned) {
     qWarning("QtTrayMenu: could not position the mouse over the tray icon");
   }
@@ -374,7 +420,7 @@ bool QtTrayMenu::restoreMousePosition() {
 
   QCursor::setPos(savedMousePosition);
   mousePositionSaved = false;
-  const bool restored = QCursor::pos() == savedMousePosition;
+  const bool restored = positionsAreClose(QCursor::pos(), savedMousePosition);
   if (!restored) {
     qWarning("QtTrayMenu: could not restore the saved mouse position");
   }

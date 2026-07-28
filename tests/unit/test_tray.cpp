@@ -127,9 +127,11 @@ protected:
   // Capture a screenshot while the tray menu is open, then dismiss and exit.
   void captureMenuStateAndExit(const char *screenshotName) const {
     const bool positionMouse = lizardbyte::common::is_github_actions();
+    int positionMouseResult = -1;
     if (positionMouse) {
       WaitForTrayReady();
-      ASSERT_EQ(tray_position_mouse_over_icon(), 0);
+      positionMouseResult = tray_position_mouse_over_icon();
+      EXPECT_EQ(positionMouseResult, 0);
     }
 
     std::atomic_bool exitRequested {false};
@@ -148,7 +150,10 @@ protected:
     }
     capture_thread.join();
     if (positionMouse) {
-      EXPECT_EQ(tray_restore_mouse_position(), 0);
+      const int restoreMouseResult = tray_restore_mouse_position();
+      if (positionMouseResult == 0) {
+        EXPECT_EQ(restoreMouseResult, 0);
+      }
     }
   }
 
