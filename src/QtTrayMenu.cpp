@@ -19,12 +19,6 @@
   #include "WindowsAppearance.h"
 #endif
 
-namespace {
-  int defaultArgc = 1;  // NOSONAR(cpp:S5421): This is required for QApplication's argc/argv constructor
-  char defaultArgv0[] = "TrayMenuApp";  // NOSONAR(cpp:S5421): This is required for QApplication's argc/argv constructor
-  char *defaultArgv[] = {defaultArgv0, nullptr};  // NOSONAR(cpp:S5421,cpp:S5954): This is required for QApplication's argc/argv constructor
-}  // namespace
-
 QtTrayMenu::QtTrayMenu(QObject *parent, const bool debug):
     QtTrayMenu(-1, nullptr, parent, debug) {
     };
@@ -40,9 +34,9 @@ QtTrayMenu::QtTrayMenu(int argc, char **argv, QObject *parent, const bool debug)
     // Note: The following is ugly but QApplication requires an argv containing the application name.
     // We might not have access to the real argc/argv here due to being called/pulled as a dependency.
     if (argc < 0 && argv == nullptr) {
-      app = new QApplication(defaultArgc, defaultArgv);  // NOSONAR(cpp:S5025): Qt has its own integrated memory management
+      app = new QApplication(defaultArgc, defaultArgv.data());  // NOSONAR(cpp:S5025): QApplication must remain alive through process teardown
     } else {
-      app = new QApplication(argc, argv);  // NOSONAR(cpp:S5025): Qt has its own integrated memory management
+      app = new QApplication(argc, argv);  // NOSONAR(cpp:S5025): QApplication must remain alive through process teardown
     }
   }
 #if defined(_WIN32)
@@ -53,16 +47,7 @@ QtTrayMenu::QtTrayMenu(int argc, char **argv, QObject *parent, const bool debug)
   }
 }
 
-QtTrayMenu::~QtTrayMenu() {
-  // Cleanup app only if it was created within this class
-  if (app && app != QApplication::instance()) {
-    // Quit QApplication
-    QApplication::quit();
-    // Delete app and clear references
-    delete app;  // NOSONAR(cpp:S5025): Qt has its own integrated memory management
-    app = nullptr;  // Set to nullptr after deletion
-  }
-}
+QtTrayMenu::~QtTrayMenu() = default;
 
 int QtTrayMenu::init(struct tray *tray, const bool notification) {
   if (trayIcon) {
@@ -82,18 +67,18 @@ int QtTrayMenu::init(struct tray *tray, const bool notification) {
   }
 
   // Create tray icon
-  trayIcon = new QSystemTrayIcon(lookupIcon(tray->icon), this);
+  trayIcon = std::make_unique<QSystemTrayIcon>(lookupIcon(tray->icon));
   trayIcon->setToolTip(QString::fromUtf8(tray->tooltip));
 
-  connect(trayIcon, &QSystemTrayIcon::activated, this, &QtTrayMenu::onTrayActivated);
-  connect(trayIcon, &QSystemTrayIcon::messageClicked, this, &QtTrayMenu::onMessageClicked);
+  connect(trayIcon.get(), &QSystemTrayIcon::activated, this, &QtTrayMenu::onTrayActivated);
+  connect(trayIcon.get(), &QSystemTrayIcon::messageClicked, this, &QtTrayMenu::onMessageClicked);
   connect(this, &QtTrayMenu::update, this, &QtTrayMenu::onUpdate);
   connect(this, &QtTrayMenu::exit, this, &QtTrayMenu::onExitRequested);
   connect(this, &QtTrayMenu::showMenu, this, &QtTrayMenu::onShowMenu);
 
   updateMenu(tray->menu);
 
-  trayIcon->setContextMenu(trayTopMenu);
+  trayIcon->setContextMenu(trayTopMenu.get());
   trayIcon->show();
 
   if (notification) {
@@ -147,14 +132,12 @@ void QtTrayMenu::onExitRequested() {
     if (trayIcon) {
       trayIcon->setContextMenu(nullptr);
     }
-    delete trayTopMenu;  // NOSONAR(cpp:S5025): Qt has its own integrated memory management
-    trayTopMenu = nullptr;  // Set to nullptr after deletion
+    trayTopMenu.reset();
   }
   // Remove tray icon references;
   if (trayIcon) {
     trayIcon->hide();
-    delete trayIcon;  // NOSONAR(cpp:S5025): Qt has its own integrated memory management
-    trayIcon = nullptr;  // Set to nullptr after deletion
+    trayIcon.reset();
   }
   // Unset tray structure
   trayStruct = nullptr;
@@ -167,22 +150,16 @@ void QtTrayMenu::onExitRequested() {
 
 void QtTrayMenu::updateMenu(struct tray_menu *items) {
   // Create and setup new tray menu instance
-  const auto newTrayTopMenu = new QMenu();  // NOSONAR(cpp:S5025): Qt has its own integrated memory management
+  auto newTrayTopMenu = std::make_unique<QMenu>();
 #if defined(_WIN32)
-  connect(newTrayTopMenu, &QMenu::aboutToShow, this, []() {
+  connect(newTrayTopMenu.get(), &QMenu::aboutToShow, this, []() {
     tray_qt::windows::sync_color_scheme();
   });
 #endif
-  trayIcon->setContextMenu(newTrayTopMenu);
+  trayIcon->setContextMenu(newTrayTopMenu.get());
   // Fill new tray menu instance
-  createMenu(items, newTrayTopMenu);
-  // Clear old, unused trayTopMenu instance
-  if (trayTopMenu != nullptr) {
-    trayTopMenu->clear();  // Remove all actions
-    delete trayTopMenu;  // NOSONAR(cpp:S5025): Qt has its own integrated memory management
-  }
-  // Store reference for cleanup
-  trayTopMenu = newTrayTopMenu;
+  createMenu(items, newTrayTopMenu.get());
+  trayTopMenu = std::move(newTrayTopMenu);
 }
 
 void QtTrayMenu::createMenu(struct tray_menu *items, QMenu *menu) {
@@ -190,7 +167,7 @@ void QtTrayMenu::createMenu(struct tray_menu *items, QMenu *menu) {
     if (strcmp(items->text, "-") == 0) {
       menu->addSeparator();
     } else {
-      auto *action = new QAction(QString::fromUtf8(items->text), menu);  // NOSONAR(cpp:S5025): Qt has its own integrated memory management
+      auto *action = menu->addAction(QString::fromUtf8(items->text));
       action->setDisabled(items->disabled == 1);
       action->setCheckable(items->checkbox == 1);
       action->setChecked(items->checked == 1);
@@ -249,7 +226,7 @@ void QtTrayMenu::onTrayActivated(QSystemTrayIcon::ActivationReason reason) {
 }
 
 void QtTrayMenu::onMenuItemTriggered() {
-  auto *action = qobject_cast<QAction *>(sender());
+  const auto *action = qobject_cast<const QAction *>(sender());
   struct tray_menu *menuItem = getTrayMenuItem(action);
 
   if (menuItem && menuItem->cb) {
@@ -257,7 +234,7 @@ void QtTrayMenu::onMenuItemTriggered() {
   }
 }
 
-struct tray_menu *QtTrayMenu::getTrayMenuItem(QAction *action) {  // NOSONAR(cpp:S995): Use as defined in function interface
+struct tray_menu *QtTrayMenu::getTrayMenuItem(const QAction *action) {
   return static_cast<struct tray_menu *>(action->property("tray_menu_item").value<void *>());
 }
 

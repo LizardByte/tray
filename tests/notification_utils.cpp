@@ -7,26 +7,52 @@
 #include "notification_utils.h"
 
 // standard includes
+#include <array>
 #include <chrono>
-#include <cstdlib>
+#include <string>
 #include <thread>
 
 // lib includes
 #include <lizardbyte/common/env.h>
 
 #if defined(__linux__)
+  #include <fcntl.h>
+  #include <spawn.h>
+  #include <sys/wait.h>
+  #include <unistd.h>
+
+extern char **environ;
+
 namespace {
   void closeFreedesktopNotifications() {
-    constexpr const char *close_notifications =
-      "if command -v dbus-send >/dev/null 2>&1; then "
-      "id=1; while [ \"$id\" -le 128 ]; do "
-      "dbus-send --session --print-reply=literal --dest=org.freedesktop.Notifications "
-      "/org/freedesktop/Notifications org.freedesktop.Notifications.CloseNotification uint32:$id "
-      ">/dev/null 2>&1; "
-      "id=$((id + 1)); "
-      "done; "
-      "fi";
-    (void) std::system(close_notifications);  // NOSONAR(cpp:S4721): test-only cleanup of desktop notifications
+    for (int id = 1; id <= 128; ++id) {
+      std::array<std::string, 7> arguments {
+        "dbus-send",
+        "--session",
+        "--print-reply=literal",
+        "--dest=org.freedesktop.Notifications",
+        "/org/freedesktop/Notifications",
+        "org.freedesktop.Notifications.CloseNotification",
+        "uint32:" + std::to_string(id),
+      };
+      std::array<char *, 8> argv {};
+      for (std::size_t i = 0; i < arguments.size(); ++i) {
+        argv[i] = arguments[i].data();
+      }
+
+      posix_spawn_file_actions_t actions;
+      posix_spawn_file_actions_init(&actions);
+      posix_spawn_file_actions_addopen(&actions, STDOUT_FILENO, "/dev/null", O_WRONLY, 0);
+      posix_spawn_file_actions_addopen(&actions, STDERR_FILENO, "/dev/null", O_WRONLY, 0);
+
+      pid_t child = 0;
+      const int spawn_result = posix_spawnp(&child, arguments[0].c_str(), &actions, nullptr, argv.data(), environ);
+      posix_spawn_file_actions_destroy(&actions);
+      if (spawn_result != 0) {
+        return;
+      }
+      waitpid(child, nullptr, 0);
+    }
   }
 }  // namespace
 #endif
