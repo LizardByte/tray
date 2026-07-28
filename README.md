@@ -37,17 +37,25 @@ This fork adds the following features:
 ## 🖼️ Screenshots
 
 <div class="tabbed">
-  <ul>
-    <li><b class="tab-title">Linux</b><br>
-      ![linux](docs/images/screenshot_linux.png)
-    </li>
-    <li><b class="tab-title">macOS</b><br>
-      ![macOS](docs/images/screenshot_macos.png)
-    </li>
-    <li><b class="tab-title">Windows</b><br>
-      ![windows](docs/images/screenshot_windows.png)
-    </li>
-  </ul>
+<ul>
+<li><b class="tab-title">Linux</b><br>
+
+![Linux tray menu](docs/images/tray_menu_left_click_linux.png)
+![Linux notification](docs/images/tray_notification_svg_icon_linux.png)
+
+</li>
+<li><b class="tab-title">macOS</b><br>
+
+![macOS tray menu](docs/images/tray_menu_left_click_macos.png)
+
+</li>
+<li><b class="tab-title">Windows</b><br>
+
+![Windows tray menu](docs/images/tray_menu_left_click_windows.png)
+![Windows notification](docs/images/tray_notification_svg_icon_windows.png)
+
+</li>
+</ul>
 </div>
 
 ## 🖥️ Supported platforms

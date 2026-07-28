@@ -9,6 +9,11 @@
 #include <string>
 #include <thread>
 #include <vector>
+#if defined(__linux__) || defined(__APPLE__)
+  // qt includes
+  #include <QImage>
+  #include <QString>
+#endif
 #ifdef _WIN32
   #ifndef NOMINMAX
     #define NOMINMAX
@@ -21,7 +26,14 @@
 // clang-format on
 #endif
 
+// lib includes
+#include <lizardbyte/common/env.h>
+
 namespace {
+  bool capture_full_screen() {
+    return lizardbyte::common::is_github_actions() && lizardbyte::common::get_env("RUNNER_DEBUG") == "1";
+  }
+
 #if defined(__linux__) || defined(__APPLE__)
   std::string quote_shell_path(const std::filesystem::path &path) {
     const std::string input = path.string();
@@ -37,6 +49,24 @@ namespace {
     }
     output.push_back('"');
     return output;
+  }
+
+  bool crop_to_top_right_quadrant(const std::filesystem::path &file) {
+    const QString imagePath = QString::fromUtf8(file.u8string().c_str());
+    const QImage image(imagePath);
+    if (image.isNull() || image.width() < 2 || image.height() < 2) {
+      std::cerr << "Screenshot dimensions invalid" << std::endl;
+      return false;
+    }
+
+    const int width = image.width() / 2;
+    const int height = image.height() / 2;
+    const QImage quadrant = image.copy(image.width() - width, 0, width, height);
+    if (!quadrant.save(imagePath, "PNG")) {
+      std::cerr << "Failed to crop " << file << std::endl;
+      return false;
+    }
+    return true;
   }
 #endif
 
@@ -108,7 +138,10 @@ namespace screenshot {
 #ifdef __APPLE__
   static bool capture_macos(const std::filesystem::path &file, const Options &) {
     std::string cmd = "screencapture -x " + quote_shell_path(file);
-    return std::system(cmd.c_str()) == 0;
+    if (std::system(cmd.c_str()) != 0) {
+      return false;
+    }
+    return capture_full_screen() || crop_to_top_right_quadrant(file);
   }
 #endif
 
@@ -118,17 +151,20 @@ namespace screenshot {
     if (std::system("which import > /dev/null 2>&1") == 0) {
       std::string cmd = "import -window root " + target;
       if (std::system(cmd.c_str()) == 0) {
-        return true;
+        return capture_full_screen() || crop_to_top_right_quadrant(file);
       }
     }
     if (std::system("which spectacle > /dev/null 2>&1") == 0) {
       std::string cmd = "spectacle -f -b -n -o " + target;
       if (std::system(cmd.c_str()) == 0) {
-        return true;
+        return capture_full_screen() || crop_to_top_right_quadrant(file);
       }
     }
     std::string cmd = "gnome-screenshot -f " + target;
-    return std::system(cmd.c_str()) == 0;
+    if (std::system(cmd.c_str()) != 0) {
+      return false;
+    }
+    return capture_full_screen() || crop_to_top_right_quadrant(file);
   }
 #endif
 
@@ -160,6 +196,15 @@ namespace screenshot {
     if (width <= 0 || height <= 0) {
       std::cerr << "Desktop dimensions invalid" << std::endl;
       return false;
+    }
+
+    if (!capture_full_screen()) {
+      const int fullWidth = width;
+      const int fullHeight = height;
+      width = fullWidth / 2;
+      height = fullHeight / 2;
+      left += fullWidth - width;
+      top += fullHeight - height;
     }
 
     HDC hdcScreen = GetDC(nullptr);
