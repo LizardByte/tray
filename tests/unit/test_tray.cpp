@@ -126,6 +126,14 @@ protected:
 
   // Capture a screenshot while the tray menu is open, then dismiss and exit.
   void captureMenuStateAndExit(const char *screenshotName) const {
+    const bool positionMouse = lizardbyte::common::is_github_actions();
+    int positionMouseResult = -1;
+    if (positionMouse) {
+      WaitForTrayReady();
+      positionMouseResult = tray_position_mouse_over_icon();
+      EXPECT_EQ(positionMouseResult, 0);
+    }
+
     std::atomic_bool exitRequested {false};
     std::thread capture_thread([this, screenshotName, &exitRequested]() {  // NOSONAR(cpp:S6168): C++17 has no std::jthread and this thread is explicitly joined
       EXPECT_TRUE(captureScreenshot(screenshotName));
@@ -141,6 +149,12 @@ protected:
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     capture_thread.join();
+    if (positionMouse) {
+      const int restoreMouseResult = tray_restore_mouse_position();
+      if (positionMouseResult == 0) {
+        EXPECT_EQ(restoreMouseResult, 0);
+      }
+    }
   }
 
   static void hello_cb(struct tray_menu *) {
@@ -222,6 +236,7 @@ protected:
 
   void TearDown() override {
     ShutdownTray();
+    tray_restore_mouse_position();
     BaseTest::TearDown();
   }
 
@@ -236,7 +251,7 @@ protected:
 
   void WaitForNotificationReady() const {
     WaitForTrayReady();
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__APPLE__)
     if (lizardbyte::common::is_github_actions()) {
       for (int i = 0; i < 40; i++) {
         tray_loop(0);

@@ -3,13 +3,16 @@
  * @brief Definitions for Qt tray menu implemenation
  */
 // standard includes
+#include <chrono>
 #include <filesystem>
+#include <thread>
 
 // qt includes
 #include <QApplication>
 #include <QCursor>
 #include <QDebug>
 #include <QMouseEvent>
+#include <QScreen>
 #include <QStyle>
 
 // local includes
@@ -18,6 +21,61 @@
 #if defined(_WIN32)
   #include "WindowsAppearance.h"
 #endif
+
+namespace {
+  constexpr int DEFAULT_PANEL_THICKNESS = 24;
+  constexpr int CURSOR_POSITION_POLL_INTERVAL_MS = 10;
+  constexpr int CURSOR_POSITION_TIMEOUT_MS = 500;
+  constexpr int CURSOR_POSITION_TOLERANCE = 2;
+
+  bool positionsAreClose(const QPoint &first, const QPoint &second) {
+    return (first - second).manhattanLength() <= CURSOR_POSITION_TOLERANCE;
+  }
+
+  bool waitForCursorPosition(const QPoint &targetPosition, const QRect &targetGeometry = {}) {
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(CURSOR_POSITION_TIMEOUT_MS);
+    do {
+      if (const QPoint currentPosition = QCursor::pos(); targetGeometry.isValid() ? targetGeometry.contains(currentPosition) : positionsAreClose(currentPosition, targetPosition)) {
+        return true;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(CURSOR_POSITION_POLL_INTERVAL_MS));
+    } while (std::chrono::steady_clock::now() < deadline);
+
+    const QPoint currentPosition = QCursor::pos();
+    return targetGeometry.isValid() ? targetGeometry.contains(currentPosition) : positionsAreClose(currentPosition, targetPosition);
+  }
+
+  bool fallbackTrayIconPosition(QPoint *position) {
+    const QScreen *screen = QGuiApplication::primaryScreen();
+    if (screen == nullptr) {
+      return false;
+    }
+
+    const QRect screenGeometry = screen->geometry();
+    const QRect availableGeometry = screen->availableGeometry();
+    const int topInset = availableGeometry.top() - screenGeometry.top();
+    const int bottomInset = screenGeometry.bottom() - availableGeometry.bottom();
+    const int rightInset = screenGeometry.right() - availableGeometry.right();
+    const int leftInset = availableGeometry.left() - screenGeometry.left();
+
+    if (topInset > 0) {
+      *position = QPoint(screenGeometry.right() - (topInset / 2), screenGeometry.top() + (topInset / 2));
+    } else if (bottomInset > 0) {
+      *position = QPoint(screenGeometry.right() - (bottomInset / 2), screenGeometry.bottom() - (bottomInset / 2));
+    } else if (rightInset > 0) {
+      *position = QPoint(screenGeometry.right() - (rightInset / 2), screenGeometry.bottom() - (rightInset / 2));
+    } else if (leftInset > 0) {
+      *position = QPoint(screenGeometry.left() + (leftInset / 2), screenGeometry.bottom() - (leftInset / 2));
+    } else {
+#if defined(_WIN32)
+      *position = QPoint(screenGeometry.right() - (DEFAULT_PANEL_THICKNESS / 2), screenGeometry.bottom() - (DEFAULT_PANEL_THICKNESS / 2));
+#else
+      *position = QPoint(screenGeometry.right() - (DEFAULT_PANEL_THICKNESS / 2), screenGeometry.top() + (DEFAULT_PANEL_THICKNESS / 2));
+#endif
+    }
+    return true;
+  }
+}  // namespace
 
 QtTrayMenu::QtTrayMenu(QObject *parent, const bool debug):
     QtTrayMenu(-1, nullptr, parent, debug) {
@@ -341,4 +399,46 @@ void QtTrayMenu::clickMessage() const {
 
 void QtTrayMenu::clearMessageCallback() const {
   notificationCallback = nullptr;
+}
+
+bool QtTrayMenu::positionMouseOverIcon() {
+  if (!trayIcon) {
+    return false;
+  }
+
+  const QRect iconGeometry = trayIcon->geometry();
+  QPoint targetPosition;
+  if (iconGeometry.isValid()) {
+    targetPosition = iconGeometry.center();
+  } else if (!fallbackTrayIconPosition(&targetPosition)) {
+    qWarning("QtTrayMenu: tray icon geometry and screen-edge fallback are unavailable");
+    return false;
+  } else {
+    qWarning("QtTrayMenu: tray icon geometry is unavailable; using the system panel edge");
+  }
+
+  if (!mousePositionSaved) {
+    savedMousePosition = QCursor::pos();
+    mousePositionSaved = true;
+  }
+  QCursor::setPos(targetPosition);
+  const bool positioned = waitForCursorPosition(targetPosition, iconGeometry);
+  if (!positioned) {
+    qWarning("QtTrayMenu: could not position the mouse over the tray icon");
+  }
+  return positioned;
+}
+
+bool QtTrayMenu::restoreMousePosition() {
+  if (!mousePositionSaved) {
+    return false;
+  }
+
+  QCursor::setPos(savedMousePosition);
+  const bool restored = waitForCursorPosition(savedMousePosition);
+  mousePositionSaved = false;
+  if (!restored) {
+    qWarning("QtTrayMenu: could not restore the saved mouse position");
+  }
+  return restored;
 }

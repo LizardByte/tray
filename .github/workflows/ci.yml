@@ -112,6 +112,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           dependencies=(
+            "cliclick"
             "cmake"
             "doxygen"
             "graphviz"
@@ -123,10 +124,12 @@ jobs:
           )
           brew install "${dependencies[@]}"
 
-      - name: Fix macOS screen recording permissions
+      - name: Configure macOS screen recording
         if: runner.os == 'macOS'
         run: |
           set -euo pipefail
+
+          clickTool="$(command -v cliclick)"
 
           configure_system_tccdb() {
             local values=$1
@@ -144,6 +147,8 @@ jobs:
 
           systemValuesArray=(
             "'kTCCServiceScreenCapture','/bin/bash',1,2,0,1,NULL,NULL,NULL,'UNUSED',NULL,0,1599831148"
+            "'kTCCServicePostEvent','/bin/bash',1,2,0,1,NULL,NULL,NULL,'UNUSED',NULL,0,1599831148"
+            "'kTCCServicePostEvent','$clickTool',1,2,0,1,NULL,NULL,NULL,'UNUSED',NULL,0,1599831148"
           )
           for values in "${systemValuesArray[@]}"; do
             configure_system_tccdb "$values,NULL,NULL,'UNUSED',${values##*,}"
@@ -151,12 +156,20 @@ jobs:
 
           userValuesArray=(
             "'kTCCServiceScreenCapture','/bin/bash',1,2,0,1,NULL,NULL,NULL,'UNUSED',NULL,0,1583997993"
+            "'kTCCServicePostEvent','/bin/bash',1,2,0,1,NULL,NULL,NULL,'UNUSED',NULL,0,1583997993"
+            "'kTCCServicePostEvent','$clickTool',1,2,0,1,NULL,NULL,NULL,'UNUSED',NULL,0,1583997993"
           )
           for values in "${userValuesArray[@]}"; do
             configure_user_tccdb "$values,NULL,NULL,'UNUSED',${values##*,}"
           done
 
-          echo "macOS TCC permissions configured."
+          preflightScreenshot="$RUNNER_TEMP/screen-capture-preflight.png"
+          screencapture -x "$preflightScreenshot"
+          sleep 1
+          "$clickTool" kp:return
+          sleep 1
+
+          echo "macOS screen recording configured."
 
       - name: Setup Dependencies Windows
         if: runner.os == 'Windows'

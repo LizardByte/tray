@@ -100,6 +100,7 @@ protected:
       trayRunning = false;
     }
 
+    tray_restore_mouse_position();
     tray_set_log_callback(nullptr);
     BaseTest::TearDown();
   }
@@ -163,6 +164,8 @@ TEST_F(TrayQtCoverageTest, SimulateMenuClickSkipsNonTriggerableActions) {
 TEST_F(TrayQtCoverageTest, ApiCallsAreNoOpsBeforeInit) {
   tray_update(trayData);
   tray_show_menu();
+  EXPECT_EQ(tray_position_mouse_over_icon(), -1);
+  EXPECT_EQ(tray_restore_mouse_position(), -1);
   tray_simulate_menu_item_click(0);
   tray_simulate_notification_click();
   PumpEvents();

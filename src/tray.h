@@ -71,6 +71,18 @@ extern "C" {
   void tray_show_menu(void);
 
   /**
+   * @brief Position the mouse over the tray icon (for testing purposes).
+   * @return 0 on success, -1 if the tray icon geometry is unavailable.
+   */
+  int tray_position_mouse_over_icon(void);
+
+  /**
+   * @brief Restore the mouse position saved by tray_position_mouse_over_icon().
+   * @return 0 on success, -1 if no saved position exists or the cursor could not be restored.
+   */
+  int tray_restore_mouse_position(void);
+
+  /**
    * @brief Simulate a notification click, invoking the notification callback (for testing purposes).
    *
    * Triggers the stored notification callback as if the user clicked the notification.
