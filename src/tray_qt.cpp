@@ -221,6 +221,20 @@ extern "C" {
     tray_qt::state().trayMenu->showMenu();
   }
 
+  int tray_position_mouse_over_icon(void) {
+    if (tray_qt::state().trayMenu == nullptr) {
+      return -1;
+    }
+    return tray_qt::state().trayMenu->positionMouseOverIcon() ? 0 : -1;
+  }
+
+  int tray_restore_mouse_position(void) {
+    if (tray_qt::state().trayMenu == nullptr) {
+      return -1;
+    }
+    return tray_qt::state().trayMenu->restoreMousePosition() ? 0 : -1;
+  }
+
   void tray_simulate_menu_item_click(int index) {
     if (tray_qt::state().trayMenu == nullptr) {
       return;

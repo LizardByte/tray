@@ -342,3 +342,41 @@ void QtTrayMenu::clickMessage() const {
 void QtTrayMenu::clearMessageCallback() const {
   notificationCallback = nullptr;
 }
+
+bool QtTrayMenu::positionMouseOverIcon() {
+  if (!trayIcon) {
+    return false;
+  }
+
+  const QRect iconGeometry = trayIcon->geometry();
+  if (!iconGeometry.isValid()) {
+    qWarning("QtTrayMenu: tray icon geometry is unavailable");
+    return false;
+  }
+
+  if (!mousePositionSaved) {
+    savedMousePosition = QCursor::pos();
+    mousePositionSaved = true;
+  }
+  const QPoint targetPosition = iconGeometry.center();
+  QCursor::setPos(targetPosition);
+  const bool positioned = QCursor::pos() == targetPosition;
+  if (!positioned) {
+    qWarning("QtTrayMenu: could not position the mouse over the tray icon");
+  }
+  return positioned;
+}
+
+bool QtTrayMenu::restoreMousePosition() {
+  if (!mousePositionSaved) {
+    return false;
+  }
+
+  QCursor::setPos(savedMousePosition);
+  mousePositionSaved = false;
+  const bool restored = QCursor::pos() == savedMousePosition;
+  if (!restored) {
+    qWarning("QtTrayMenu: could not restore the saved mouse position");
+  }
+  return restored;
+}

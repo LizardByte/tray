@@ -126,6 +126,12 @@ protected:
 
   // Capture a screenshot while the tray menu is open, then dismiss and exit.
   void captureMenuStateAndExit(const char *screenshotName) const {
+    const bool positionMouse = lizardbyte::common::is_github_actions();
+    if (positionMouse) {
+      WaitForTrayReady();
+      ASSERT_EQ(tray_position_mouse_over_icon(), 0);
+    }
+
     std::atomic_bool exitRequested {false};
     std::thread capture_thread([this, screenshotName, &exitRequested]() {  // NOSONAR(cpp:S6168): C++17 has no std::jthread and this thread is explicitly joined
       EXPECT_TRUE(captureScreenshot(screenshotName));
@@ -141,6 +147,9 @@ protected:
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     capture_thread.join();
+    if (positionMouse) {
+      EXPECT_EQ(tray_restore_mouse_position(), 0);
+    }
   }
 
   static void hello_cb(struct tray_menu *) {
@@ -222,6 +231,7 @@ protected:
 
   void TearDown() override {
     ShutdownTray();
+    tray_restore_mouse_position();
     BaseTest::TearDown();
   }
 

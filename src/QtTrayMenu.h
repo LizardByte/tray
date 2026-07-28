@@ -12,6 +12,7 @@
 // qt includes
 #include <QMenu>
 #include <QObject>
+#include <QPoint>
 #include <QString>
 #include <QSystemTrayIcon>
 
@@ -111,6 +112,18 @@ public:
   void clearMessageCallback() const;
 
   /**
+   * @brief Move the mouse cursor to the center of the tray icon.
+   * @return true if the tray icon has valid screen geometry and the cursor was moved
+   */
+  bool positionMouseOverIcon();
+
+  /**
+   * @brief Restore the mouse cursor position saved by positionMouseOverIcon().
+   * @return true if a saved position existed and the cursor was restored
+   */
+  bool restoreMousePosition();
+
+  /**
    * @brief Check if QtTrayMenu supports messages
    * @return true if messages can be shown
    */
@@ -150,6 +163,8 @@ private:
   bool blockingEventLoop = false;
   struct tray_menu *getTrayMenuItem(const QAction *action);
   mutable std::function<void()> notificationCallback = nullptr;
+  QPoint savedMousePosition;
+  bool mousePositionSaved = false;
 
 private slots:
   void onExitRequested();
