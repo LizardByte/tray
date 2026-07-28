@@ -5,6 +5,8 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <cstddef>
+#include <new>
 #include <ostream>
 #include <string>
 #include <thread>
@@ -67,41 +69,35 @@ namespace {
     return {};
   }
 
-  struct tray_menu g_submenu7_8[] = {  // NOSONAR(cpp:S5945,cpp:S5421): C-style array with null sentinel required by tray C API; mutable for runtime callback assignment
-    {.text = "7", .cb = nullptr},
-    {.text = "-"},
-    {.text = "8", .cb = nullptr},
-    {.text = nullptr}
-  };
-  struct tray_menu g_submenu5_6[] = {  // NOSONAR(cpp:S5945,cpp:S5421): C-style array with null sentinel required by tray C API; mutable for runtime callback assignment
-    {.text = "5", .cb = nullptr},
-    {.text = "6", .cb = nullptr},
-    {.text = nullptr}
-  };
-  struct tray_menu g_submenu_second[] = {  // NOSONAR(cpp:S5945,cpp:S5421): C-style array with null sentinel required by tray C API; mutable for runtime callback assignment
-    {.text = "THIRD", .submenu = g_submenu7_8},
-    {.text = "FOUR", .submenu = g_submenu5_6},
-    {.text = nullptr}
-  };
-  struct tray_menu g_submenu[] = {  // NOSONAR(cpp:S5945,cpp:S5421): C-style array with null sentinel required by tray C API; mutable for runtime callback assignment
-    {.text = "Hello", .cb = nullptr},
-    {.text = "Checked", .checked = 1, .checkbox = 1, .cb = nullptr},
-    {.text = "Disabled", .disabled = 1},
-    {.text = "-"},
-    {.text = "SubMenu", .submenu = g_submenu_second},
-    {.text = "-"},
-    {.text = "Quit", .cb = nullptr},
-    {.text = nullptr}
-  };
-  struct tray g_testTray = {  // NOSONAR(cpp:S5421): mutable global required for shared tray state across TEST_F instances
-    .icon = TRAY_ICON1,
-    .tooltip = "TestTray",
-    .menu = g_submenu
-  };
 }  // namespace
 
-class TrayTest: public BaseTest {  // NOSONAR(cpp:S3656): fixture members must be protected for TEST_F-generated subclasses
-protected:  // NOSONAR(cpp:S3656): TEST_F generates subclasses that need access to fixture state/methods
+class TrayTest: public BaseTest {
+private:
+  static TrayTest &fixtureFor(struct tray_menu *item) {
+    return *static_cast<TrayTest *>(item->context);
+  }
+
+  std::array<struct tray_menu, 4> submenu7_8_ {{{.text = "7", .cb = submenu_cb, .context = this}, {.text = "-"}, {.text = "8", .cb = submenu_cb, .context = this}, {.text = nullptr}}};
+  std::array<struct tray_menu, 3> submenu5_6_ {{{.text = "5", .cb = submenu_cb, .context = this}, {.text = "6", .cb = submenu_cb, .context = this}, {.text = nullptr}}};
+  std::array<struct tray_menu, 3> submenuSecond_ {{{.text = "THIRD", .context = this, .submenu = submenu7_8_.data()}, {.text = "FOUR", .context = this, .submenu = submenu5_6_.data()}, {.text = nullptr}}};
+  std::array<struct tray_menu, 8> submenu_ {{{.text = "Hello", .cb = hello_cb, .context = this}, {.text = "Checked", .checked = 1, .checkbox = 1, .cb = toggle_cb, .context = this}, {.text = "Disabled", .disabled = 1}, {.text = "-"}, {.text = "SubMenu", .context = this, .submenu = submenuSecond_.data()}, {.text = "-"}, {.text = "Quit", .cb = quit_cb, .context = this}, {.text = nullptr}}};
+  std::array<std::byte, sizeof(struct tray)> testTrayStorage_ {};
+  struct tray *testTray_ = ::new (static_cast<void *>(testTrayStorage_.data())) tray {
+    .icon = TRAY_ICON1,
+    .tooltip = "TestTray",
+    .menu = submenu_.data(),
+    .iconPathCount = 0,
+  };
+  bool trayRunning_ {false};
+
+protected:
+  bool &trayRunning = trayRunning_;
+  struct tray &testTray = *testTray_;
+  struct tray_menu *const submenu = submenu_.data();
+  struct tray_menu *const submenu7_8 = submenu7_8_.data();
+  struct tray_menu *const submenu5_6 = submenu5_6_.data();
+  struct tray_menu *const submenu_second = submenuSecond_.data();
+
   void ShutdownTray() {
     if (!trayRunning) {
       return;
@@ -131,7 +127,7 @@ protected:  // NOSONAR(cpp:S3656): TEST_F generates subclasses that need access 
   // Capture a screenshot while the tray menu is open, then dismiss and exit.
   void captureMenuStateAndExit(const char *screenshotName) const {
     std::atomic_bool exitRequested {false};
-    std::thread capture_thread([this, screenshotName, &exitRequested]() {
+    std::thread capture_thread([this, screenshotName, &exitRequested]() {  // NOSONAR(cpp:S6168): C++17 has no std::jthread and this thread is explicitly joined
       EXPECT_TRUE(captureScreenshot(screenshotName));
       closeMenu();
       exitRequested.store(true, std::memory_order_release);
@@ -147,42 +143,27 @@ protected:  // NOSONAR(cpp:S3656): TEST_F generates subclasses that need access 
     capture_thread.join();
   }
 
-  bool trayRunning {false};  // NOSONAR(cpp:S3656): protected access required by gtest TEST_F subclass pattern
-  struct tray &testTray = g_testTray;  // NOSONAR(cpp:S3656): protected access required by gtest TEST_F subclass pattern
-  struct tray_menu *submenu = g_submenu;  // NOSONAR(cpp:S3656): protected access required by gtest TEST_F subclass pattern
-  struct tray_menu *submenu7_8 = g_submenu7_8;  // NOSONAR(cpp:S3656): protected access required by gtest TEST_F subclass pattern
-  struct tray_menu *submenu5_6 = g_submenu5_6;  // NOSONAR(cpp:S3656): protected access required by gtest TEST_F subclass pattern
-  struct tray_menu *submenu_second = g_submenu_second;  // NOSONAR(cpp:S3656): protected access required by gtest TEST_F subclass pattern
-
-  static void hello_cb([[maybe_unused]] struct tray_menu *item) {
+  static void hello_cb(struct tray_menu *) {
     // Mock implementation
   }
 
-  static void toggle_cb([[maybe_unused]] struct tray_menu *item) {  // NOSONAR(cpp:S1172): unused param required by tray_menu.cb function pointer type
-    g_testTray.menu[1].checked = !g_testTray.menu[1].checked;
-    tray_update(&g_testTray);
+  static void toggle_cb(struct tray_menu *item) {
+    auto &fixture = fixtureFor(item);
+    item->checked = !item->checked;
+    tray_update(fixture.testTray_);
   }
 
-  static void quit_cb([[maybe_unused]] struct tray_menu *item) {  // NOSONAR(cpp:S1172): unused param required by tray_menu.cb function pointer type
+  static void quit_cb(struct tray_menu *) {
     tray_exit();
   }
 
-  static void submenu_cb([[maybe_unused]] struct tray_menu *item) {  // NOSONAR(cpp:S1172): unused param required by tray_menu.cb function pointer type
+  static void submenu_cb(struct tray_menu *item) {
     // Mock implementation
-    tray_update(&g_testTray);
+    tray_update(fixtureFor(item).testTray_);
   }
 
   void SetUp() override {
     BaseTest::SetUp();
-
-    // Wire up callbacks (file-scope arrays can't use addresses of class statics at init time)
-    g_submenu[0].cb = hello_cb;
-    g_submenu[1].cb = toggle_cb;
-    g_submenu[6].cb = quit_cb;
-    g_submenu7_8[0].cb = submenu_cb;
-    g_submenu7_8[2].cb = submenu_cb;
-    g_submenu5_6[0].cb = submenu_cb;
-    g_submenu5_6[1].cb = submenu_cb;
 
     // Skip tests if screenshot tooling is not available
     if (!ensureScreenshotReady()) {
@@ -235,8 +216,8 @@ protected:  // NOSONAR(cpp:S3656): TEST_F generates subclasses that need access 
     testTray.notification_text = nullptr;
     testTray.notification_icon = nullptr;
     testTray.notification_cb = nullptr;
-    testTray.menu = g_submenu;
-    g_submenu[1].checked = 1;
+    testTray.menu = submenu;
+    submenu[1].checked = 1;
   }
 
   void TearDown() override {
@@ -516,7 +497,7 @@ TEST_F(TrayTest, TestCheckboxStates) {
   EXPECT_EQ(testTray.menu[1].checked, 1);
 
   // Show menu open with checkbox in checked state
-  captureMenuStateAndExit("tray_menu_checkbox_checked");  // NOSONAR(cpp:S6168): helper uses std::thread for AppleClang 17 compatibility
+  captureMenuStateAndExit("tray_menu_checkbox_checked");
 
   // Re-initialize tray with checkbox unchecked
   trayRunning = false;
@@ -526,7 +507,7 @@ TEST_F(TrayTest, TestCheckboxStates) {
   ASSERT_EQ(initResult, 0);
 
   // Show menu open with checkbox in unchecked state
-  captureMenuStateAndExit("tray_menu_checkbox_unchecked");  // NOSONAR(cpp:S6168): helper uses std::thread for AppleClang 17 compatibility
+  captureMenuStateAndExit("tray_menu_checkbox_unchecked");
 
   // Restore initial checked state
   testTray.menu[1].checked = 1;
@@ -600,7 +581,7 @@ TEST_F(TrayTest, TestTrayShowMenu) {
   ASSERT_EQ(initResult, 0);
 
   // Screenshot shows the full menu open, including the SubMenu entry that leads to nested items
-  captureMenuStateAndExit("tray_menu_shown");  // NOSONAR(cpp:S6168): helper uses std::thread for AppleClang 17 compatibility
+  captureMenuStateAndExit("tray_menu_shown");
 }
 
 TEST_F(TrayTest, TestTrayExit) {
@@ -617,7 +598,7 @@ TEST_F(TrayTest, TestMenuAppearsOnLeftClick) {
   trayRunning = (initResult == 0);
   ASSERT_EQ(initResult, 0);
 
-  captureMenuStateAndExit("tray_menu_left_click");  // NOSONAR(cpp:S6168): helper uses std::thread for AppleClang 17 compatibility
+  captureMenuStateAndExit("tray_menu_left_click");
 }
 
 TEST_P(TrayNotificationIconTest, TestNotificationCallbackFiredOnClick) {
@@ -660,9 +641,8 @@ TEST_F(TrayTest, TestMenuCallbackAfterNotificationUpdate) {
   static int callbackCount = 0;
   callbackCount = 0;
 
-  auto first_item_callback = [](struct tray_menu *item) {  // NOSONAR(cpp:S1172): unused param required by tray_menu.cb function pointer type
+  auto first_item_callback = [](struct tray_menu *) {
     callbackCount++;
-    (void) item;
   };
 
   void (*original_cb)(struct tray_menu *) = testTray.menu[0].cb;

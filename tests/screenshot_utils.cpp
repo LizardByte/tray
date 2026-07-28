@@ -56,11 +56,7 @@ namespace {
     static std::once_flag dpiFlag;
     static bool dpiAware = false;
     std::call_once(dpiFlag, []() {
-      using SetProcessDPIAwareFn = BOOL(WINAPI *)();
-      auto *fn = reinterpret_cast<SetProcessDPIAwareFn>(  // NOSONAR(cpp:S3630): required for GetProcAddress function pointer cast
-        GetProcAddress(GetModuleHandleA("user32.dll"), "SetProcessDPIAware")
-      );
-      dpiAware = fn == nullptr || fn() == TRUE;
+      dpiAware = SetProcessDPIAware() == TRUE;
     });
     return dpiAware;
   }
@@ -89,19 +85,24 @@ namespace {
 
 namespace screenshot {
 
-  inline std::filesystem::path &output_root_ref() {
-    static std::filesystem::path g_outputRoot;  // NOSONAR(cpp:S6018): function-local static is intentional for lazy, TU-local initialization
-    return g_outputRoot;
-  }
+  class ScreenshotState {
+  public:
+    static std::filesystem::path &outputRoot() {
+      return outputRoot_;
+    }
+
+  private:
+    inline static std::filesystem::path outputRoot_;
+  };
 
   void initialize(const std::filesystem::path &rootDir) {
-    output_root_ref() = rootDir / "screenshots";
+    ScreenshotState::outputRoot() = rootDir / "screenshots";
     std::error_code ec;
-    std::filesystem::create_directories(output_root_ref(), ec);
+    std::filesystem::create_directories(ScreenshotState::outputRoot(), ec);
   }
 
   std::filesystem::path output_root() {
-    return output_root_ref();
+    return ScreenshotState::outputRoot();
   }
 
 #ifdef __APPLE__
@@ -237,10 +238,10 @@ namespace screenshot {
     // Add a delay to allow UI elements to render before capturing
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-    if (output_root_ref().empty()) {
+    if (ScreenshotState::outputRoot().empty()) {
       return false;
     }
-    auto file = output_root_ref() / (name + ".png");
+    auto file = ScreenshotState::outputRoot() / (name + ".png");
 
 #ifdef __APPLE__
     return capture_macos(file, options);

@@ -19,36 +19,32 @@
 
 namespace tray_qt {
   /**
-   * QtTrayMenu instance
+   * @brief Process-wide state backing the C tray API.
    */
-  std::unique_ptr<QtTrayMenu> qt_tray_menu = nullptr;  // NOSONAR(cpp:S5421): mutable state, not const
+  struct State {
+    std::unique_ptr<QtTrayMenu> trayMenu;  ///< Active tray menu instance.
+    void (*logCallback)(int, const char *) = nullptr;  ///< Registered C logging callback.
+    bool appInfoConfigured = false;  ///< Whether application metadata was explicitly configured.
+    QString appName;  ///< Configured application name.
+    QString appDisplayName;  ///< Configured application display name.
+    QString desktopName;  ///< Configured desktop file name.
+  };
+
   /**
-   * Logging callback for qt_message_handler
+   * @brief Access the process-wide tray API state.
+   * @return Mutable tray API state.
    */
-  void (*log_callback)(int, const char *) = nullptr;  // NOSONAR(cpp:S5421): mutable state, not const
-  /**
-   * Explicit Qt application metadata configured through the C API.
-   */
-  bool app_info_configured = false;  // NOSONAR(cpp:S5421): mutable state, not const
-  /**
-   * Qt application name configured through the C API.
-   */
-  QString app_name;  // NOSONAR(cpp:S5421): mutable state, not const
-  /**
-   * Qt application display name configured through the C API.
-   */
-  QString app_display_name;  // NOSONAR(cpp:S5421): mutable state, not const
-  /**
-   * Qt desktop file name configured through the C API.
-   */
-  QString desktop_name;  // NOSONAR(cpp:S5421): mutable state, not const
+  State &state() {
+    static State instance;
+    return instance;
+  }
 
   /**
    * @brief Acknowledge/click current notification.
    */
   void acknowledge_notification() {
-    if (qt_tray_menu != nullptr && QtTrayMenu::supportsMessages()) {
-      qt_tray_menu->clickMessage();
+    if (state().trayMenu != nullptr && QtTrayMenu::supportsMessages()) {
+      state().trayMenu->clickMessage();
     }
   }
 
@@ -56,8 +52,8 @@ namespace tray_qt {
    * @brief Clear current notification state without invoking callbacks.
    */
   void clear_notification() {
-    if (qt_tray_menu != nullptr) {
-      qt_tray_menu->clearMessageCallback();
+    if (state().trayMenu != nullptr) {
+      state().trayMenu->clearMessageCallback();
     }
   }
 
@@ -70,11 +66,11 @@ namespace tray_qt {
       clear_notification();
       return;
     }
-    if (qt_tray_menu != nullptr && QtTrayMenu::supportsMessages()) {
+    if (state().trayMenu != nullptr && QtTrayMenu::supportsMessages()) {
       if (tray->notification_icon != nullptr) {
-        qt_tray_menu->showMessage(tray->notification_title, tray->notification_text, tray->notification_icon, tray->notification_cb);
+        state().trayMenu->showMessage(tray->notification_title, tray->notification_text, tray->notification_icon, tray->notification_cb);
       } else {
-        qt_tray_menu->showMessage(tray->notification_title, tray->notification_text, tray->notification_cb);
+        state().trayMenu->showMessage(tray->notification_title, tray->notification_text, tray->notification_cb);
       }
     }
   }
@@ -84,14 +80,15 @@ namespace tray_qt {
    * @param allow_defaults Whether empty app info values should apply fallback defaults.
    */
   void apply_app_info(const bool allow_defaults = true) {
-    if (!app_info_configured || qt_tray_menu == nullptr) {
+    const auto &current_state = state();
+    if (!current_state.appInfoConfigured || current_state.trayMenu == nullptr) {
       return;
     }
-    if (!allow_defaults && app_name.isEmpty() && app_display_name.isEmpty()) {
+    if (!allow_defaults && current_state.appName.isEmpty() && current_state.appDisplayName.isEmpty()) {
       return;
     }
 
-    qt_tray_menu->configureAppMetadata(app_name, app_display_name, desktop_name);
+    current_state.trayMenu->configureAppMetadata(current_state.appName, current_state.appDisplayName, current_state.desktopName);
   }
 
   /**
@@ -114,7 +111,7 @@ namespace tray_qt {
    * @param msg The message string.
    */
   void qt_message_handler(QtMsgType type, const QMessageLogContext &, const QString &msg) {
-    if (log_callback == nullptr) {
+    if (state().logCallback == nullptr) {
       return;
     }
     int level;
@@ -132,29 +129,31 @@ namespace tray_qt {
         level = 3;
         break;
     }
-    log_callback(level, msg.toUtf8().constData());
+    state().logCallback(level, msg.toUtf8().constData());
   }
 }  // namespace tray_qt
 
 extern "C" {
   void tray_set_app_info(const char *app_name, const char *app_display_name, const char *desktop_name) {
-    tray_qt::app_info_configured = true;
-    tray_qt::app_name = app_name != nullptr ? QString::fromUtf8(app_name) : QString();
-    tray_qt::app_display_name = app_display_name != nullptr ? QString::fromUtf8(app_display_name) : QString();
-    tray_qt::desktop_name = desktop_name != nullptr ? QString::fromUtf8(desktop_name) : QString();
+    auto &state = tray_qt::state();
+    state.appInfoConfigured = true;
+    state.appName = app_name != nullptr ? QString::fromUtf8(app_name) : QString();
+    state.appDisplayName = app_display_name != nullptr ? QString::fromUtf8(app_display_name) : QString();
+    state.desktopName = desktop_name != nullptr ? QString::fromUtf8(desktop_name) : QString();
 
     tray_qt::apply_app_info();
   }
 
   int tray_init(struct tray *tray) {
-    if (tray_qt::qt_tray_menu == nullptr) {
+    auto &state = tray_qt::state();
+    if (state.trayMenu == nullptr) {
       tray_qt::configure_platform();
       // Create a new unique pointer to QtTrayMenu instance
-      tray_qt::qt_tray_menu = std::make_unique<QtTrayMenu>();
+      state.trayMenu = std::make_unique<QtTrayMenu>();
       tray_qt::apply_app_info(false);
     }
 
-    if (const auto result = tray_qt::qt_tray_menu->init(tray, false); result < 0) {
+    if (const auto result = state.trayMenu->init(tray, false); result < 0) {
       // Tray init failed. Clean up and return error.
       tray_exit();
       return result;
@@ -173,18 +172,18 @@ extern "C" {
   }
 
   int tray_loop(int blocking) {
-    if (tray_qt::qt_tray_menu == nullptr) {
+    if (tray_qt::state().trayMenu == nullptr) {
       return -1;
     }
-    return tray_qt::qt_tray_menu->loop(blocking);
+    return tray_qt::state().trayMenu->loop(blocking);
   }
 
   void tray_update(struct tray *tray) {  // NOSONAR(cpp:S995): C API requires this exact mutable-pointer signature
-    if (tray_qt::qt_tray_menu == nullptr) {
+    if (tray_qt::state().trayMenu == nullptr) {
       return;
     }
 
-    auto *const tray_menu = tray_qt::qt_tray_menu.get();
+    auto *const tray_menu = tray_qt::state().trayMenu.get();
     const auto apply_update = [tray_menu, tray]() {
       tray_menu->update(tray, false);
       tray_qt::notify(tray);
@@ -200,14 +199,14 @@ extern "C" {
   }
 
   void tray_exit(void) {
-    if (tray_qt::qt_tray_menu == nullptr) {
+    if (tray_qt::state().trayMenu == nullptr) {
       return;
     }
-    tray_qt::qt_tray_menu->exit();
+    tray_qt::state().trayMenu->exit();
   }
 
   void tray_set_log_callback(void (*cb)(int level, const char *msg)) {  // NOSONAR(cpp:S5205): C API requires a plain function pointer callback type
-    tray_qt::log_callback = cb;
+    tray_qt::state().logCallback = cb;
     if (cb != nullptr) {
       qInstallMessageHandler(tray_qt::qt_message_handler);
     } else {
@@ -216,17 +215,17 @@ extern "C" {
   }
 
   void tray_show_menu(void) {
-    if (tray_qt::qt_tray_menu == nullptr) {
+    if (tray_qt::state().trayMenu == nullptr) {
       return;
     }
-    tray_qt::qt_tray_menu->showMenu();
+    tray_qt::state().trayMenu->showMenu();
   }
 
   void tray_simulate_menu_item_click(int index) {
-    if (tray_qt::qt_tray_menu == nullptr) {
+    if (tray_qt::state().trayMenu == nullptr) {
       return;
     }
-    tray_qt::qt_tray_menu->clickMenuItem(index);
+    tray_qt::state().trayMenu->clickMenuItem(index);
   }
 
   void tray_simulate_notification_click(void) {

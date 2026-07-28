@@ -11,7 +11,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
+#include <new>
 #include <optional>
 #include <thread>
 #include <vector>
@@ -50,8 +50,21 @@ namespace {
   }
 }  // namespace
 
-class TrayQtCoverageTest: public BaseTest {  // NOSONAR(cpp:S3656): fixture members/methods are accessed by TEST_F-generated subclasses
-protected:  // NOSONAR(cpp:S3656): TEST_F requires protected fixture visibility
+class TrayQtCoverageTest: public BaseTest {
+private:
+  bool trayRunning_ {false};
+  std::array<struct tray_menu, 6> menuItems_ {};
+  std::array<struct tray_menu, 2> submenuItems_ {};
+  std::vector<std::byte> trayDataStorage_ {};
+  struct tray *trayData_ = nullptr;
+
+protected:
+  bool &trayRunning = trayRunning_;
+  std::array<struct tray_menu, 6> &menuItems = menuItems_;
+  std::array<struct tray_menu, 2> &submenuItems = submenuItems_;
+  std::vector<std::byte> &trayDataStorage = trayDataStorage_;
+  struct tray *&trayData = trayData_;
+
   void SetUp() override {
     BaseTest::SetUp();
 
@@ -67,17 +80,17 @@ protected:  // NOSONAR(cpp:S3656): TEST_F requires protected fixture visibility
     menuItems = {{{.text = "Clickable", .cb = menu_item_cb}, {.text = "-"}, {.text = "Submenu", .submenu = submenuItems.data()}, {.text = "Disabled", .disabled = 1, .cb = menu_item_cb}, {.text = "Second Clickable", .cb = menu_item_cb}, {.text = nullptr}}};
 
     trayDataStorage.assign(sizeof(struct tray), std::byte {0});
-    trayData = reinterpret_cast<struct tray *>(trayDataStorage.data());  // NOSONAR(cpp:S3630): required to map a C flexible-array struct over raw storage
-    trayData->icon = "icon.png";
-    trayData->tooltip = "Qt Tray Coverage";
-    trayData->notification_icon = nullptr;
-    trayData->notification_text = nullptr;
-    trayData->notification_title = nullptr;
-    trayData->notification_cb = nullptr;
-    trayData->menu = menuItems.data();
-
-    const int iconPathCount = 0;
-    std::memcpy(const_cast<int *>(&trayData->iconPathCount), &iconPathCount, sizeof(iconPathCount));  // NOSONAR(cpp:S859): required to initialize const member in C struct allocated via raw buffer
+    trayData = ::new (static_cast<void *>(trayDataStorage.data())) tray {
+      .icon = "icon.png",
+      .tooltip = "Qt Tray Coverage",
+      .notification_icon = nullptr,
+      .notification_text = nullptr,
+      .notification_title = nullptr,
+      .notification_cb = nullptr,
+      .cb = nullptr,
+      .menu = menuItems.data(),
+      .iconPathCount = 0,
+    };
   }
 
   void TearDown() override {
@@ -102,12 +115,6 @@ protected:  // NOSONAR(cpp:S3656): TEST_F requires protected fixture visibility
       tray_loop(0);
     }
   }
-
-  bool trayRunning {false};
-  std::array<struct tray_menu, 6> menuItems {};
-  std::array<struct tray_menu, 2> submenuItems {};
-  std::vector<std::byte> trayDataStorage {};
-  struct tray *trayData = nullptr;
 };
 
 #if defined(_WIN32)
@@ -285,22 +292,22 @@ TEST_F(TrayQtCoverageTest, ResolveTrayIconFromIconPathArray) {
   const size_t iconCount = 2;
   const size_t bufSize = sizeof(struct tray) + iconCount * sizeof(const char *);
   std::vector<std::byte> buf(bufSize, std::byte {0});
-  auto *iconPathTray = reinterpret_cast<struct tray *>(buf.data());  // NOSONAR(cpp:S3630): reinterpret_cast is required to map a C flexible-array struct over raw storage
-
-  iconPathTray->icon = "missing-icon-name";
-  iconPathTray->tooltip = "Icon path fallback";
-  iconPathTray->notification_icon = nullptr;
-  iconPathTray->notification_text = nullptr;
-  iconPathTray->notification_title = nullptr;
-  iconPathTray->notification_cb = nullptr;
-  iconPathTray->menu = menuItems.data();
-
   const auto countVal = static_cast<int>(iconCount);
-  std::memcpy(const_cast<int *>(&iconPathTray->iconPathCount), &countVal, sizeof(countVal));  // NOSONAR(cpp:S859): const member initialization is required for this C interop allocation pattern
+  auto *iconPathTray = ::new (static_cast<void *>(buf.data())) tray {
+    .icon = "missing-icon-name",
+    .tooltip = "Icon path fallback",
+    .notification_icon = nullptr,
+    .notification_text = nullptr,
+    .notification_title = nullptr,
+    .notification_cb = nullptr,
+    .cb = nullptr,
+    .menu = menuItems.data(),
+    .iconPathCount = countVal,
+  };
   const char *badIcon = "missing-icon-name";
   const char *goodIcon = "icon.png";
-  std::memcpy(const_cast<char **>(&iconPathTray->allIconPaths[0]), &badIcon, sizeof(badIcon));  // NOSONAR(cpp:S859): required to initialize const flexible-array entries
-  std::memcpy(const_cast<char **>(&iconPathTray->allIconPaths[1]), &goodIcon, sizeof(goodIcon));  // NOSONAR(cpp:S859): required to initialize const flexible-array entries
+  iconPathTray->allIconPaths[0] = badIcon;
+  iconPathTray->allIconPaths[1] = goodIcon;
 
   const int initResult = tray_init(iconPathTray);
   trayRunning = (initResult == 0);
