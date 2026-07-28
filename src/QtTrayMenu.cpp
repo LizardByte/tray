@@ -15,6 +15,10 @@
 // local includes
 #include "QtTrayMenu.h"
 
+#if defined(_WIN32)
+  #include "WindowsAppearance.h"
+#endif
+
 namespace {
   int defaultArgc = 1;  // NOSONAR(cpp:S5421): This is required for QApplication's argc/argv constructor
   char defaultArgv0[] = "TrayMenuApp";  // NOSONAR(cpp:S5421): This is required for QApplication's argc/argv constructor
@@ -41,6 +45,9 @@ QtTrayMenu::QtTrayMenu(int argc, char **argv, QObject *parent, const bool debug)
       app = new QApplication(argc, argv);  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
     }
   }
+#if defined(_WIN32)
+  tray_qt::windows::configure_appearance(app);
+#endif
   if (debug) {
     app->installEventFilter(this);
   }
@@ -101,7 +108,7 @@ void QtTrayMenu::onUpdate(struct tray *tray, const bool notify) {
     return;
   }
   this->trayStruct = tray;
-  if (const auto newIcon = QIcon(trayStruct->icon); !newIcon.isNull()) {
+  if (const auto newIcon = lookupIcon(trayStruct->icon); !newIcon.isNull()) {
     trayIcon->setIcon(newIcon);
   }
   trayIcon->setToolTip(QString::fromUtf8(trayStruct->tooltip));
@@ -161,6 +168,11 @@ void QtTrayMenu::onExitRequested() {
 void QtTrayMenu::updateMenu(struct tray_menu *items) {
   // Create and setup new tray menu instance
   const auto newTrayTopMenu = new QMenu();  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
+#if defined(_WIN32)
+  connect(newTrayTopMenu, &QMenu::aboutToShow, this, []() {
+    tray_qt::windows::sync_color_scheme();
+  });
+#endif
   trayIcon->setContextMenu(newTrayTopMenu);
   // Fill new tray menu instance
   createMenu(items, newTrayTopMenu);
@@ -250,33 +262,35 @@ struct tray_menu *QtTrayMenu::getTrayMenuItem(QAction *action) {  // NOSONAR(cpp
 }
 
 void QtTrayMenu::onMessageClicked() const {
-  if (notificationCallback != nullptr) {
-    notificationCallback();
+  if (notificationCallback == nullptr) {
+    return;
   }
+
+  auto callback = std::move(notificationCallback);
+  notificationCallback = nullptr;
+  callback();
 }
 
 void QtTrayMenu::configureAppMetadata(const QString &appName, const QString &appDisplayName, const QString &desktopName) const {
   const QString effective_name = !appName.isEmpty() ? appName : QStringLiteral("tray");
-  if (QApplication::applicationName().isEmpty()) {
+  if (!appName.isEmpty() || QApplication::applicationName().isEmpty() || QApplication::applicationName() == QStringLiteral("TrayMenuApp")) {
     QApplication::setApplicationName(effective_name);
   }
 
-  if (QApplication::applicationDisplayName().isEmpty()) {
-    if (!appDisplayName.isEmpty()) {
-      QApplication::setApplicationDisplayName(appDisplayName);
-    } else {
-      const QString display_name =
-        (trayStruct && trayStruct->tooltip) ? QString::fromUtf8(trayStruct->tooltip) : effective_name;
-      QApplication::setApplicationDisplayName(display_name);
-    }
-  }
-
-  if (!QApplication::desktopFileName().isEmpty()) {
-    return;
+  if (!appDisplayName.isEmpty()) {
+    QApplication::setApplicationDisplayName(appDisplayName);
+  } else if (QApplication::applicationDisplayName().isEmpty()) {
+    const QString display_name =
+      (trayStruct && trayStruct->tooltip) ? QString::fromUtf8(trayStruct->tooltip) : effective_name;
+    QApplication::setApplicationDisplayName(display_name);
   }
 
   if (!desktopName.isEmpty()) {
     QApplication::setDesktopFileName(desktopName);
+    return;
+  }
+
+  if (!QApplication::desktopFileName().isEmpty()) {
     return;
   }
 
@@ -346,4 +360,8 @@ void QtTrayMenu::clickMessage() const {
     return;
   }
   emit trayIcon->messageClicked();
+}
+
+void QtTrayMenu::clearMessageCallback() const {
+  notificationCallback = nullptr;
 }

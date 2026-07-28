@@ -9,13 +9,8 @@
 // local includes
 #include "tray.h"
 
-#if defined(_WIN32)
-  #define TRAY_ICON1 "icon.ico"  ///< Path to first icon.
-  #define TRAY_ICON2 "icon.ico"  ///< Path to second icon.
-#else
-  #define TRAY_ICON1 "icon.png"
-  #define TRAY_ICON2 "icon.png"
-#endif
+#define TRAY_ICON1 "icon.png"  ///< Path to first icon.
+#define TRAY_ICON2 "icon2.png"  ///< Path to second icon.
 
 static struct tray tray;
 

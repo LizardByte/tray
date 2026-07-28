@@ -32,6 +32,7 @@ endif()
 
 file(GLOB_RECURSE TEST_SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/conftest.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/notification_utils.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/screenshot_utils.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/unit/test_*.cpp"
 )

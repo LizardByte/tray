@@ -5,10 +5,6 @@
 #ifndef TRAY_H
 #define TRAY_H
 
-#if defined(_WIN32)
-  #include <Windows.h>
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -77,17 +73,15 @@ extern "C" {
   /**
    * @brief Simulate a notification click, invoking the notification callback (for testing purposes).
    *
-   * On Linux (Qt): triggers the stored notification callback as if the user clicked the notification.
-   * On other platforms: no-op.
+   * Triggers the stored notification callback as if the user clicked the notification.
    */
   void tray_simulate_notification_click(void);
 
   /**
    * @brief Simulate clicking a top-level menu item by index (for testing purposes).
    *
-   * On Linux (Qt): triggers the QAction associated with the given top-level menu
-   * index (separators and submenus are ignored).
-   * On other platforms: no-op.
+   * Triggers the QAction associated with the given top-level menu index
+   * (separators and submenus are ignored).
    *
    * @param index Zero-based index in the top-level tray menu.
    */
@@ -101,9 +95,8 @@ extern "C" {
   /**
    * @brief Set a callback for log messages produced by the tray library.
    *
-   * On Linux the callback is installed as a Qt message handler so all Qt
-   * diagnostic output is routed through it. On other platforms this function
-   * is a no-op.
+   * The callback is installed as a Qt message handler so all Qt diagnostic
+   * output is routed through it.
    *
    * @param cb Callback invoked with level (0=debug, 1=info, 2=warning, 3=error)
    *   and the message string. Pass NULL to restore the default logging behaviour.
@@ -113,9 +106,8 @@ extern "C" {
   /**
    * @brief Set application metadata used by the tray library.
    *
-   * Must be called before tray_init(). On Linux (Qt), sets the Qt application
-   * name, display name, and desktop file name used for D-Bus registration. On
-   * other platforms this function is a no-op.
+   * Must be called before tray_init(). Sets the Qt application name, display
+   * name, and desktop file name.
    *
    * @param app_name Application name used as a technical identifier (e.g., for
    *   D-Bus registration). Converted to lowercase automatically. NULL uses the
@@ -126,14 +118,6 @@ extern "C" {
    *   to app_name.
    */
   void tray_set_app_info(const char *app_name, const char *app_display_name, const char *desktop_name);
-
-#if defined(_WIN32)
-  /**
-   * @brief Get the tray window handle.
-   * @return The window handle.
-   */
-  HWND tray_get_hwnd(void);
-#endif
 
 #ifdef __cplusplus
 }  // extern "C"
