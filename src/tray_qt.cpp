@@ -21,27 +21,27 @@ namespace tray_qt {
   /**
    * QtTrayMenu instance
    */
-  std::unique_ptr<QtTrayMenu> qt_tray_menu = nullptr;  // NOSONAR(cpp:S5421) - mutable state, not const
+  std::unique_ptr<QtTrayMenu> qt_tray_menu = nullptr;  // NOSONAR(cpp:S5421): mutable state, not const
   /**
    * Logging callback for qt_message_handler
    */
-  void (*log_callback)(int, const char *) = nullptr;  // NOSONAR(cpp:S5421) - mutable state, not const
+  void (*log_callback)(int, const char *) = nullptr;  // NOSONAR(cpp:S5421): mutable state, not const
   /**
    * Explicit Qt application metadata configured through the C API.
    */
-  bool app_info_configured = false;  // NOSONAR(cpp:S5421) - mutable state, not const
+  bool app_info_configured = false;  // NOSONAR(cpp:S5421): mutable state, not const
   /**
    * Qt application name configured through the C API.
    */
-  QString app_name;  // NOSONAR(cpp:S5421) - mutable state, not const
+  QString app_name;  // NOSONAR(cpp:S5421): mutable state, not const
   /**
    * Qt application display name configured through the C API.
    */
-  QString app_display_name;  // NOSONAR(cpp:S5421) - mutable state, not const
+  QString app_display_name;  // NOSONAR(cpp:S5421): mutable state, not const
   /**
    * Qt desktop file name configured through the C API.
    */
-  QString desktop_name;  // NOSONAR(cpp:S5421) - mutable state, not const
+  QString desktop_name;  // NOSONAR(cpp:S5421): mutable state, not const
 
   /**
    * @brief Acknowledge/click current notification.
@@ -179,7 +179,7 @@ extern "C" {
     return tray_qt::qt_tray_menu->loop(blocking);
   }
 
-  void tray_update(struct tray *tray) {  // NOSONAR(cpp:S995) - C API requires this exact mutable-pointer signature
+  void tray_update(struct tray *tray) {  // NOSONAR(cpp:S995): C API requires this exact mutable-pointer signature
     if (tray_qt::qt_tray_menu == nullptr) {
       return;
     }
@@ -206,7 +206,7 @@ extern "C" {
     tray_qt::qt_tray_menu->exit();
   }
 
-  void tray_set_log_callback(void (*cb)(int level, const char *msg)) {  // NOSONAR(cpp:S5205) - C API requires a plain function pointer callback type
+  void tray_set_log_callback(void (*cb)(int level, const char *msg)) {  // NOSONAR(cpp:S5205): C API requires a plain function pointer callback type
     tray_qt::log_callback = cb;
     if (cb != nullptr) {
       qInstallMessageHandler(tray_qt::qt_message_handler);

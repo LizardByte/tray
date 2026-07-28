@@ -26,7 +26,7 @@ namespace {
       "id=$((id + 1)); "
       "done; "
       "fi";
-    (void) std::system(close_notifications);  // NOSONAR(cpp:S4721) - test-only cleanup of desktop notifications
+    (void) std::system(close_notifications);  // NOSONAR(cpp:S4721): test-only cleanup of desktop notifications
   }
 }  // namespace
 #endif

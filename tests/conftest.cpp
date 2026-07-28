@@ -9,8 +9,9 @@
 
 // test includes
 #include "tests/screenshot_utils.h"
+
 // Undefine the original TEST macro
-#undef TEST
+#undef TEST  // NOSONAR(cpp:S959): Tray tests extend the shared fixture with screenshot support.
 
 // Redefine TEST to use our BaseTest class, to automatically use our BaseTest fixture
 #define TEST(test_case_name, test_name) \
@@ -30,8 +31,7 @@ protected:
   void SetUp() override {
     ::lizardbyte::common::testing::BaseTest::SetUp();
 
-    // todo: only run this one time, instead of every time a test is run
-    // see: https://stackoverflow.com/questions/2435277/googletest-accessing-the-environment-from-a-test
+    // The shared test fixture caches the command-line arguments.
     // get command line args from the test executable
     testArgs_ = getArgs();
 

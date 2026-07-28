@@ -57,7 +57,7 @@ namespace {
     static bool dpiAware = false;
     std::call_once(dpiFlag, []() {
       using SetProcessDPIAwareFn = BOOL(WINAPI *)();
-      auto *fn = reinterpret_cast<SetProcessDPIAwareFn>(  // NOSONAR(cpp:S3630) - required for GetProcAddress function pointer cast
+      auto *fn = reinterpret_cast<SetProcessDPIAwareFn>(  // NOSONAR(cpp:S3630): required for GetProcAddress function pointer cast
         GetProcAddress(GetModuleHandleA("user32.dll"), "SetProcessDPIAware")
       );
       dpiAware = fn == nullptr || fn() == TRUE;
@@ -90,7 +90,7 @@ namespace {
 namespace screenshot {
 
   inline std::filesystem::path &output_root_ref() {
-    static std::filesystem::path g_outputRoot;  // NOSONAR(cpp:S6018) - function-local static is intentional for lazy, TU-local initialization
+    static std::filesystem::path g_outputRoot;  // NOSONAR(cpp:S6018): function-local static is intentional for lazy, TU-local initialization
     return g_outputRoot;
   }
 

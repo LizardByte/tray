@@ -20,7 +20,7 @@ static void toggle_cb(struct tray_menu *item) {
   tray_update(&tray);
 }
 
-static void hello_cb(struct tray_menu *item) {
+static void hello_cb(struct tray_menu *item) {  // NOSONAR(c:S995): Mutable parameter required by tray_menu.cb.
   (void) item;
   printf("hello cb\n");
   if (strcmp(tray.icon, TRAY_ICON1) == 0) {
@@ -31,13 +31,13 @@ static void hello_cb(struct tray_menu *item) {
   tray_update(&tray);
 }
 
-static void quit_cb(struct tray_menu *item) {
+static void quit_cb(struct tray_menu *item) {  // NOSONAR(c:S995): Mutable parameter required by tray_menu.cb.
   (void) item;
   printf("quit cb\n");
   tray_exit();
 }
 
-static void submenu_cb(struct tray_menu *item) {
+static void submenu_cb(struct tray_menu *item) {  // NOSONAR(c:S995): Mutable parameter required by tray_menu.cb.
   (void) item;
   printf("submenu: clicked on %s\n", item->text);
   tray_update(&tray);
