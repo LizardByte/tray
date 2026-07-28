@@ -3,7 +3,9 @@
  * @brief Definitions for Qt tray menu implemenation
  */
 // standard includes
+#include <chrono>
 #include <filesystem>
+#include <thread>
 
 // qt includes
 #include <QApplication>
@@ -22,10 +24,25 @@
 
 namespace {
   constexpr int DEFAULT_PANEL_THICKNESS = 24;
+  constexpr int CURSOR_POSITION_POLL_INTERVAL_MS = 10;
+  constexpr int CURSOR_POSITION_TIMEOUT_MS = 500;
   constexpr int CURSOR_POSITION_TOLERANCE = 2;
 
   bool positionsAreClose(const QPoint &first, const QPoint &second) {
     return (first - second).manhattanLength() <= CURSOR_POSITION_TOLERANCE;
+  }
+
+  bool waitForCursorPosition(const QPoint &targetPosition, const QRect &targetGeometry = {}) {
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(CURSOR_POSITION_TIMEOUT_MS);
+    do {
+      if (const QPoint currentPosition = QCursor::pos(); targetGeometry.isValid() ? targetGeometry.contains(currentPosition) : positionsAreClose(currentPosition, targetPosition)) {
+        return true;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(CURSOR_POSITION_POLL_INTERVAL_MS));
+    } while (std::chrono::steady_clock::now() < deadline);
+
+    const QPoint currentPosition = QCursor::pos();
+    return targetGeometry.isValid() ? targetGeometry.contains(currentPosition) : positionsAreClose(currentPosition, targetPosition);
   }
 
   bool fallbackTrayIconPosition(QPoint *position) {
@@ -405,8 +422,7 @@ bool QtTrayMenu::positionMouseOverIcon() {
     mousePositionSaved = true;
   }
   QCursor::setPos(targetPosition);
-  const QPoint currentPosition = QCursor::pos();
-  const bool positioned = iconGeometry.isValid() ? iconGeometry.contains(currentPosition) : positionsAreClose(currentPosition, targetPosition);
+  const bool positioned = waitForCursorPosition(targetPosition, iconGeometry);
   if (!positioned) {
     qWarning("QtTrayMenu: could not position the mouse over the tray icon");
   }
@@ -419,8 +435,8 @@ bool QtTrayMenu::restoreMousePosition() {
   }
 
   QCursor::setPos(savedMousePosition);
+  const bool restored = waitForCursorPosition(savedMousePosition);
   mousePositionSaved = false;
-  const bool restored = positionsAreClose(QCursor::pos(), savedMousePosition);
   if (!restored) {
     qWarning("QtTrayMenu: could not restore the saved mouse position");
   }
