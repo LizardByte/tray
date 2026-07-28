@@ -251,7 +251,7 @@ protected:
 
   void WaitForNotificationReady() const {
     WaitForTrayReady();
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__APPLE__)
     if (lizardbyte::common::is_github_actions()) {
       for (int i = 0; i < 40; i++) {
         tray_loop(0);
