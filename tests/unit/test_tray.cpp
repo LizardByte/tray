@@ -67,23 +67,23 @@ namespace {
     return {};
   }
 
-  struct tray_menu g_submenu7_8[] = {  // NOSONAR(cpp:S5945, cpp:S5421) - C-style array with null sentinel required by tray C API; mutable for runtime callback assignment
+  struct tray_menu g_submenu7_8[] = {  // NOSONAR(cpp:S5945,cpp:S5421): C-style array with null sentinel required by tray C API; mutable for runtime callback assignment
     {.text = "7", .cb = nullptr},
     {.text = "-"},
     {.text = "8", .cb = nullptr},
     {.text = nullptr}
   };
-  struct tray_menu g_submenu5_6[] = {  // NOSONAR(cpp:S5945, cpp:S5421) - C-style array with null sentinel required by tray C API; mutable for runtime callback assignment
+  struct tray_menu g_submenu5_6[] = {  // NOSONAR(cpp:S5945,cpp:S5421): C-style array with null sentinel required by tray C API; mutable for runtime callback assignment
     {.text = "5", .cb = nullptr},
     {.text = "6", .cb = nullptr},
     {.text = nullptr}
   };
-  struct tray_menu g_submenu_second[] = {  // NOSONAR(cpp:S5945, cpp:S5421) - C-style array with null sentinel required by tray C API; mutable for runtime callback assignment
+  struct tray_menu g_submenu_second[] = {  // NOSONAR(cpp:S5945,cpp:S5421): C-style array with null sentinel required by tray C API; mutable for runtime callback assignment
     {.text = "THIRD", .submenu = g_submenu7_8},
     {.text = "FOUR", .submenu = g_submenu5_6},
     {.text = nullptr}
   };
-  struct tray_menu g_submenu[] = {  // NOSONAR(cpp:S5945, cpp:S5421) - C-style array with null sentinel required by tray C API; mutable for runtime callback assignment
+  struct tray_menu g_submenu[] = {  // NOSONAR(cpp:S5945,cpp:S5421): C-style array with null sentinel required by tray C API; mutable for runtime callback assignment
     {.text = "Hello", .cb = nullptr},
     {.text = "Checked", .checked = 1, .checkbox = 1, .cb = nullptr},
     {.text = "Disabled", .disabled = 1},
@@ -93,15 +93,15 @@ namespace {
     {.text = "Quit", .cb = nullptr},
     {.text = nullptr}
   };
-  struct tray g_testTray = {  // NOSONAR(cpp:S5421) - mutable global required for shared tray state across TEST_F instances
+  struct tray g_testTray = {  // NOSONAR(cpp:S5421): mutable global required for shared tray state across TEST_F instances
     .icon = TRAY_ICON1,
     .tooltip = "TestTray",
     .menu = g_submenu
   };
 }  // namespace
 
-class TrayTest: public BaseTest {  // NOSONAR(cpp:S3656) - fixture members must be protected for TEST_F-generated subclasses
-protected:  // NOSONAR(cpp:S3656) - TEST_F generates subclasses that need access to fixture state/methods
+class TrayTest: public BaseTest {  // NOSONAR(cpp:S3656): fixture members must be protected for TEST_F-generated subclasses
+protected:  // NOSONAR(cpp:S3656): TEST_F generates subclasses that need access to fixture state/methods
   void ShutdownTray() {
     if (!trayRunning) {
       return;
@@ -147,27 +147,27 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F generates subclasses that need access
     capture_thread.join();
   }
 
-  bool trayRunning {false};  // NOSONAR(cpp:S3656) - protected access required by gtest TEST_F subclass pattern
-  struct tray &testTray = g_testTray;  // NOSONAR(cpp:S3656) - protected access required by gtest TEST_F subclass pattern
-  struct tray_menu *submenu = g_submenu;  // NOSONAR(cpp:S3656) - protected access required by gtest TEST_F subclass pattern
-  struct tray_menu *submenu7_8 = g_submenu7_8;  // NOSONAR(cpp:S3656) - protected access required by gtest TEST_F subclass pattern
-  struct tray_menu *submenu5_6 = g_submenu5_6;  // NOSONAR(cpp:S3656) - protected access required by gtest TEST_F subclass pattern
-  struct tray_menu *submenu_second = g_submenu_second;  // NOSONAR(cpp:S3656) - protected access required by gtest TEST_F subclass pattern
+  bool trayRunning {false};  // NOSONAR(cpp:S3656): protected access required by gtest TEST_F subclass pattern
+  struct tray &testTray = g_testTray;  // NOSONAR(cpp:S3656): protected access required by gtest TEST_F subclass pattern
+  struct tray_menu *submenu = g_submenu;  // NOSONAR(cpp:S3656): protected access required by gtest TEST_F subclass pattern
+  struct tray_menu *submenu7_8 = g_submenu7_8;  // NOSONAR(cpp:S3656): protected access required by gtest TEST_F subclass pattern
+  struct tray_menu *submenu5_6 = g_submenu5_6;  // NOSONAR(cpp:S3656): protected access required by gtest TEST_F subclass pattern
+  struct tray_menu *submenu_second = g_submenu_second;  // NOSONAR(cpp:S3656): protected access required by gtest TEST_F subclass pattern
 
   static void hello_cb([[maybe_unused]] struct tray_menu *item) {
     // Mock implementation
   }
 
-  static void toggle_cb([[maybe_unused]] struct tray_menu *item) {  // NOSONAR(cpp:S1172) - unused param required by tray_menu.cb function pointer type
+  static void toggle_cb([[maybe_unused]] struct tray_menu *item) {  // NOSONAR(cpp:S1172): unused param required by tray_menu.cb function pointer type
     g_testTray.menu[1].checked = !g_testTray.menu[1].checked;
     tray_update(&g_testTray);
   }
 
-  static void quit_cb([[maybe_unused]] struct tray_menu *item) {  // NOSONAR(cpp:S1172) - unused param required by tray_menu.cb function pointer type
+  static void quit_cb([[maybe_unused]] struct tray_menu *item) {  // NOSONAR(cpp:S1172): unused param required by tray_menu.cb function pointer type
     tray_exit();
   }
 
-  static void submenu_cb([[maybe_unused]] struct tray_menu *item) {  // NOSONAR(cpp:S1172) - unused param required by tray_menu.cb function pointer type
+  static void submenu_cb([[maybe_unused]] struct tray_menu *item) {  // NOSONAR(cpp:S1172): unused param required by tray_menu.cb function pointer type
     // Mock implementation
     tray_update(&g_testTray);
   }
@@ -477,7 +477,7 @@ TEST_F(TrayTest, TestMenuItemContext) {
   static int contextValue = 42;
   static bool contextCallbackInvoked = false;
 
-  auto context_callback = [](struct tray_menu *item) {  // NOSONAR(cpp:S995) - must match tray_menu.cb signature void(*)(struct tray_menu*)
+  auto context_callback = [](struct tray_menu *item) {  // NOSONAR(cpp:S995): must match tray_menu.cb signature void(*)(struct tray_menu*)
     if (item->context != nullptr) {
       const auto *value = static_cast<const int *>(item->context);
       contextCallbackInvoked = (*value == 42);
@@ -516,7 +516,7 @@ TEST_F(TrayTest, TestCheckboxStates) {
   EXPECT_EQ(testTray.menu[1].checked, 1);
 
   // Show menu open with checkbox in checked state
-  captureMenuStateAndExit("tray_menu_checkbox_checked");  // NOSONAR(cpp:S6168) - helper uses std::thread for AppleClang 17 compatibility
+  captureMenuStateAndExit("tray_menu_checkbox_checked");  // NOSONAR(cpp:S6168): helper uses std::thread for AppleClang 17 compatibility
 
   // Re-initialize tray with checkbox unchecked
   trayRunning = false;
@@ -526,7 +526,7 @@ TEST_F(TrayTest, TestCheckboxStates) {
   ASSERT_EQ(initResult, 0);
 
   // Show menu open with checkbox in unchecked state
-  captureMenuStateAndExit("tray_menu_checkbox_unchecked");  // NOSONAR(cpp:S6168) - helper uses std::thread for AppleClang 17 compatibility
+  captureMenuStateAndExit("tray_menu_checkbox_unchecked");  // NOSONAR(cpp:S6168): helper uses std::thread for AppleClang 17 compatibility
 
   // Restore initial checked state
   testTray.menu[1].checked = 1;
@@ -600,7 +600,7 @@ TEST_F(TrayTest, TestTrayShowMenu) {
   ASSERT_EQ(initResult, 0);
 
   // Screenshot shows the full menu open, including the SubMenu entry that leads to nested items
-  captureMenuStateAndExit("tray_menu_shown");  // NOSONAR(cpp:S6168) - helper uses std::thread for AppleClang 17 compatibility
+  captureMenuStateAndExit("tray_menu_shown");  // NOSONAR(cpp:S6168): helper uses std::thread for AppleClang 17 compatibility
 }
 
 TEST_F(TrayTest, TestTrayExit) {
@@ -617,7 +617,7 @@ TEST_F(TrayTest, TestMenuAppearsOnLeftClick) {
   trayRunning = (initResult == 0);
   ASSERT_EQ(initResult, 0);
 
-  captureMenuStateAndExit("tray_menu_left_click");  // NOSONAR(cpp:S6168) - helper uses std::thread for AppleClang 17 compatibility
+  captureMenuStateAndExit("tray_menu_left_click");  // NOSONAR(cpp:S6168): helper uses std::thread for AppleClang 17 compatibility
 }
 
 TEST_P(TrayNotificationIconTest, TestNotificationCallbackFiredOnClick) {
@@ -660,7 +660,7 @@ TEST_F(TrayTest, TestMenuCallbackAfterNotificationUpdate) {
   static int callbackCount = 0;
   callbackCount = 0;
 
-  auto first_item_callback = [](struct tray_menu *item) {  // NOSONAR(cpp:S1172) - unused param required by tray_menu.cb function pointer type
+  auto first_item_callback = [](struct tray_menu *item) {  // NOSONAR(cpp:S1172): unused param required by tray_menu.cb function pointer type
     callbackCount++;
     (void) item;
   };

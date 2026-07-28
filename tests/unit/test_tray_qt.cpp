@@ -50,8 +50,8 @@ namespace {
   }
 }  // namespace
 
-class TrayQtCoverageTest: public BaseTest {  // NOSONAR(cpp:S3656) - fixture members/methods are accessed by TEST_F-generated subclasses
-protected:  // NOSONAR(cpp:S3656) - TEST_F requires protected fixture visibility
+class TrayQtCoverageTest: public BaseTest {  // NOSONAR(cpp:S3656): fixture members/methods are accessed by TEST_F-generated subclasses
+protected:  // NOSONAR(cpp:S3656): TEST_F requires protected fixture visibility
   void SetUp() override {
     BaseTest::SetUp();
 
@@ -67,7 +67,7 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F requires protected fixture visibility
     menuItems = {{{.text = "Clickable", .cb = menu_item_cb}, {.text = "-"}, {.text = "Submenu", .submenu = submenuItems.data()}, {.text = "Disabled", .disabled = 1, .cb = menu_item_cb}, {.text = "Second Clickable", .cb = menu_item_cb}, {.text = nullptr}}};
 
     trayDataStorage.assign(sizeof(struct tray), std::byte {0});
-    trayData = reinterpret_cast<struct tray *>(trayDataStorage.data());  // NOSONAR(cpp:S3630) - required to map a C flexible-array struct over raw storage
+    trayData = reinterpret_cast<struct tray *>(trayDataStorage.data());  // NOSONAR(cpp:S3630): required to map a C flexible-array struct over raw storage
     trayData->icon = "icon.png";
     trayData->tooltip = "Qt Tray Coverage";
     trayData->notification_icon = nullptr;
@@ -77,7 +77,7 @@ protected:  // NOSONAR(cpp:S3656) - TEST_F requires protected fixture visibility
     trayData->menu = menuItems.data();
 
     const int iconPathCount = 0;
-    std::memcpy(const_cast<int *>(&trayData->iconPathCount), &iconPathCount, sizeof(iconPathCount));  // NOSONAR(cpp:S859) - required to initialize const member in C struct allocated via raw buffer
+    std::memcpy(const_cast<int *>(&trayData->iconPathCount), &iconPathCount, sizeof(iconPathCount));  // NOSONAR(cpp:S859): required to initialize const member in C struct allocated via raw buffer
   }
 
   void TearDown() override {
@@ -285,7 +285,7 @@ TEST_F(TrayQtCoverageTest, ResolveTrayIconFromIconPathArray) {
   const size_t iconCount = 2;
   const size_t bufSize = sizeof(struct tray) + iconCount * sizeof(const char *);
   std::vector<std::byte> buf(bufSize, std::byte {0});
-  auto *iconPathTray = reinterpret_cast<struct tray *>(buf.data());  // NOSONAR(cpp:S3630) - reinterpret_cast is required to map a C flexible-array struct over raw storage
+  auto *iconPathTray = reinterpret_cast<struct tray *>(buf.data());  // NOSONAR(cpp:S3630): reinterpret_cast is required to map a C flexible-array struct over raw storage
 
   iconPathTray->icon = "missing-icon-name";
   iconPathTray->tooltip = "Icon path fallback";
@@ -296,11 +296,11 @@ TEST_F(TrayQtCoverageTest, ResolveTrayIconFromIconPathArray) {
   iconPathTray->menu = menuItems.data();
 
   const auto countVal = static_cast<int>(iconCount);
-  std::memcpy(const_cast<int *>(&iconPathTray->iconPathCount), &countVal, sizeof(countVal));  // NOSONAR(cpp:S859) - const member initialization is required for this C interop allocation pattern
+  std::memcpy(const_cast<int *>(&iconPathTray->iconPathCount), &countVal, sizeof(countVal));  // NOSONAR(cpp:S859): const member initialization is required for this C interop allocation pattern
   const char *badIcon = "missing-icon-name";
   const char *goodIcon = "icon.png";
-  std::memcpy(const_cast<char **>(&iconPathTray->allIconPaths[0]), &badIcon, sizeof(badIcon));  // NOSONAR(cpp:S859) - required to initialize const flexible-array entries
-  std::memcpy(const_cast<char **>(&iconPathTray->allIconPaths[1]), &goodIcon, sizeof(goodIcon));  // NOSONAR(cpp:S859) - required to initialize const flexible-array entries
+  std::memcpy(const_cast<char **>(&iconPathTray->allIconPaths[0]), &badIcon, sizeof(badIcon));  // NOSONAR(cpp:S859): required to initialize const flexible-array entries
+  std::memcpy(const_cast<char **>(&iconPathTray->allIconPaths[1]), &goodIcon, sizeof(goodIcon));  // NOSONAR(cpp:S859): required to initialize const flexible-array entries
 
   const int initResult = tray_init(iconPathTray);
   trayRunning = (initResult == 0);

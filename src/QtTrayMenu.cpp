@@ -40,9 +40,9 @@ QtTrayMenu::QtTrayMenu(int argc, char **argv, QObject *parent, const bool debug)
     // Note: The following is ugly but QApplication requires an argv containing the application name.
     // We might not have access to the real argc/argv here due to being called/pulled as a dependency.
     if (argc < 0 && argv == nullptr) {
-      app = new QApplication(defaultArgc, defaultArgv);  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
+      app = new QApplication(defaultArgc, defaultArgv);  // NOSONAR(cpp:S5025): Qt has its own integrated memory management
     } else {
-      app = new QApplication(argc, argv);  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
+      app = new QApplication(argc, argv);  // NOSONAR(cpp:S5025): Qt has its own integrated memory management
     }
   }
 #if defined(_WIN32)
@@ -59,7 +59,7 @@ QtTrayMenu::~QtTrayMenu() {
     // Quit QApplication
     QApplication::quit();
     // Delete app and clear references
-    delete app;  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
+    delete app;  // NOSONAR(cpp:S5025): Qt has its own integrated memory management
     app = nullptr;  // Set to nullptr after deletion
   }
 }
@@ -147,13 +147,13 @@ void QtTrayMenu::onExitRequested() {
     if (trayIcon) {
       trayIcon->setContextMenu(nullptr);
     }
-    delete trayTopMenu;  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
+    delete trayTopMenu;  // NOSONAR(cpp:S5025): Qt has its own integrated memory management
     trayTopMenu = nullptr;  // Set to nullptr after deletion
   }
   // Remove tray icon references;
   if (trayIcon) {
     trayIcon->hide();
-    delete trayIcon;  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
+    delete trayIcon;  // NOSONAR(cpp:S5025): Qt has its own integrated memory management
     trayIcon = nullptr;  // Set to nullptr after deletion
   }
   // Unset tray structure
@@ -167,7 +167,7 @@ void QtTrayMenu::onExitRequested() {
 
 void QtTrayMenu::updateMenu(struct tray_menu *items) {
   // Create and setup new tray menu instance
-  const auto newTrayTopMenu = new QMenu();  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
+  const auto newTrayTopMenu = new QMenu();  // NOSONAR(cpp:S5025): Qt has its own integrated memory management
 #if defined(_WIN32)
   connect(newTrayTopMenu, &QMenu::aboutToShow, this, []() {
     tray_qt::windows::sync_color_scheme();
@@ -179,7 +179,7 @@ void QtTrayMenu::updateMenu(struct tray_menu *items) {
   // Clear old, unused trayTopMenu instance
   if (trayTopMenu != nullptr) {
     trayTopMenu->clear();  // Remove all actions
-    delete trayTopMenu;  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
+    delete trayTopMenu;  // NOSONAR(cpp:S5025): Qt has its own integrated memory management
   }
   // Store reference for cleanup
   trayTopMenu = newTrayTopMenu;
@@ -190,7 +190,7 @@ void QtTrayMenu::createMenu(struct tray_menu *items, QMenu *menu) {
     if (strcmp(items->text, "-") == 0) {
       menu->addSeparator();
     } else {
-      auto *action = new QAction(QString::fromUtf8(items->text), menu);  // NOSONAR(cpp:S5025) - Qt has its own integrated memory management
+      auto *action = new QAction(QString::fromUtf8(items->text), menu);  // NOSONAR(cpp:S5025): Qt has its own integrated memory management
       action->setDisabled(items->disabled == 1);
       action->setCheckable(items->checkbox == 1);
       action->setChecked(items->checked == 1);
@@ -257,7 +257,7 @@ void QtTrayMenu::onMenuItemTriggered() {
   }
 }
 
-struct tray_menu *QtTrayMenu::getTrayMenuItem(QAction *action) {  // NOSONAR(cpp:S995) - Use as defined in function interface
+struct tray_menu *QtTrayMenu::getTrayMenuItem(QAction *action) {  // NOSONAR(cpp:S995): Use as defined in function interface
   return static_cast<struct tray_menu *>(action->property("tray_menu_item").value<void *>());
 }
 
