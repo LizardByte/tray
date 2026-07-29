@@ -142,6 +142,12 @@ protected:
     });
 
     tray_show_menu();
+    if (positionMouse) {
+      const int restoreMouseResult = tray_restore_mouse_position();
+      if (positionMouseResult == 0) {
+        EXPECT_EQ(restoreMouseResult, 0);
+      }
+    }
     while (tray_loop(0) == 0) {
       if (exitRequested.load(std::memory_order_acquire)) {
         tray_exit();
@@ -149,12 +155,6 @@ protected:
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     capture_thread.join();
-    if (positionMouse) {
-      const int restoreMouseResult = tray_restore_mouse_position();
-      if (positionMouseResult == 0) {
-        EXPECT_EQ(restoreMouseResult, 0);
-      }
-    }
   }
 
   static void hello_cb(struct tray_menu *) {
@@ -467,6 +467,23 @@ TEST_F(TrayTest, TestTooltipUpdate) {
   // Restore original tooltip
   testTray.tooltip = "TestTray";
   tray_update(&testTray);
+}
+
+TEST_F(TrayTest, TestTooltipDisplayOnHover) {
+  testTray.icon = TRAY_ICON_SVG;
+
+  int initResult = tray_init(&testTray);
+  trayRunning = (initResult == 0);
+  ASSERT_EQ(initResult, 0);
+  WaitForTrayReady();
+
+  ASSERT_EQ(tray_position_mouse_over_icon(), 0);
+  for (int i = 0; i < 20; ++i) {
+    tray_loop(0);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  }
+  EXPECT_TRUE(captureScreenshot("tray_tooltip_hover"));
+  EXPECT_EQ(tray_restore_mouse_position(), 0);
 }
 
 TEST_F(TrayTest, TestMenuItemContext) {
