@@ -112,7 +112,6 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           dependencies=(
-            "cliclick"
             "cmake"
             "doxygen"
             "graphviz"
@@ -126,50 +125,7 @@ jobs:
 
       - name: Configure macOS screen recording
         if: runner.os == 'macOS'
-        run: |
-          set -euo pipefail
-
-          clickTool="$(command -v cliclick)"
-
-          configure_system_tccdb() {
-            local values=$1
-            local dbPath="/Library/Application Support/com.apple.TCC/TCC.db"
-            local sqlQuery="INSERT OR IGNORE INTO access VALUES($values);"
-            sudo sqlite3 "$dbPath" "$sqlQuery"
-          }
-
-          configure_user_tccdb() {
-            local values=$1
-            local dbPath="$HOME/Library/Application Support/com.apple.TCC/TCC.db"
-            local sqlQuery="INSERT OR IGNORE INTO access VALUES($values);"
-            sqlite3 "$dbPath" "$sqlQuery"
-          }
-
-          systemValuesArray=(
-            "'kTCCServiceScreenCapture','/bin/bash',1,2,0,1,NULL,NULL,NULL,'UNUSED',NULL,0,1599831148"
-            "'kTCCServicePostEvent','/bin/bash',1,2,0,1,NULL,NULL,NULL,'UNUSED',NULL,0,1599831148"
-            "'kTCCServicePostEvent','$clickTool',1,2,0,1,NULL,NULL,NULL,'UNUSED',NULL,0,1599831148"
-          )
-          for values in "${systemValuesArray[@]}"; do
-            configure_system_tccdb "$values,NULL,NULL,'UNUSED',${values##*,}"
-          done
-
-          userValuesArray=(
-            "'kTCCServiceScreenCapture','/bin/bash',1,2,0,1,NULL,NULL,NULL,'UNUSED',NULL,0,1583997993"
-            "'kTCCServicePostEvent','/bin/bash',1,2,0,1,NULL,NULL,NULL,'UNUSED',NULL,0,1583997993"
-            "'kTCCServicePostEvent','$clickTool',1,2,0,1,NULL,NULL,NULL,'UNUSED',NULL,0,1583997993"
-          )
-          for values in "${userValuesArray[@]}"; do
-            configure_user_tccdb "$values,NULL,NULL,'UNUSED',${values##*,}"
-          done
-
-          preflightScreenshot="$RUNNER_TEMP/screen-capture-preflight.png"
-          screencapture -x "$preflightScreenshot"
-          sleep 1
-          "$clickTool" kp:return
-          sleep 1
-
-          echo "macOS screen recording configured."
+        uses: ./.github/actions/configure-macos-screen-recording
 
       - name: Setup Dependencies Windows
         if: runner.os == 'Windows'
@@ -235,35 +191,9 @@ jobs:
         working-directory: build/tests
         run: ./test_tray --gtest_color=yes --gtest_filter=TrayTest.TestTrayInit
 
-      - name: Configure Windows
+      - name: Configure Windows tray screenshots
         if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          echo "::group::Enable all tray icons"
-          Invoke-WebRequest `
-            -Uri "https://raw.githubusercontent.com/paulmann/windows-show-all-tray-icons/main/Enable-AllTrayIcons.ps1" `
-            -OutFile "Enable-AllTrayIcons.ps1"
-          .\Enable-AllTrayIcons.ps1 -Action Enable -Force  # Enable with comprehensive method (resets ALL icon settings)
-          echo "::endgroup::"
-
-          echo "::group::Disable Do Not Disturb"
-          Add-Type -AssemblyName System.Windows.Forms
-          Start-Process "ms-settings:notifications"
-          Start-Sleep -Seconds 2
-          [System.Windows.Forms.SendKeys]::SendWait("{TAB}")
-          [System.Windows.Forms.SendKeys]::SendWait("{TAB}")
-          [System.Windows.Forms.SendKeys]::SendWait(" ")
-          echo "::endgroup::"
-
-          echo "::group::Minimize all windows"
-          $shell = New-Object -ComObject Shell.Application
-          $shell.MinimizeAll()
-          echo "::endgroup::"
-
-          echo "::group::Set Date - Hack for Quiet Time"
-          $newDate = (Get-Date).AddHours(2)
-          Set-Date -Date $newDate
-          echo "::endgroup::"
+        uses: ./.github/actions/configure-windows-tray-screenshots
 
       - name: Run tests
         id: test

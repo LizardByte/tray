@@ -1,0 +1,36 @@
+---
+name: Configure Windows tray screenshots
+description: Configure a GitHub-hosted Windows runner for visible tray icons and notifications.
+
+runs:
+  using: composite
+  steps:
+    - name: Configure Windows tray screenshots
+      shell: pwsh
+      run: |
+        echo "::group::Enable all tray icons"
+        $trayIconScript = Join-Path $env:RUNNER_TEMP "Enable-AllTrayIcons.ps1"
+        Invoke-WebRequest `
+          -Uri "https://raw.githubusercontent.com/paulmann/windows-show-all-tray-icons/main/Enable-AllTrayIcons.ps1" `
+          -OutFile $trayIconScript
+        & $trayIconScript -Action Enable -Force
+        echo "::endgroup::"
+
+        echo "::group::Disable Do Not Disturb"
+        Add-Type -AssemblyName System.Windows.Forms
+        Start-Process "ms-settings:notifications"
+        Start-Sleep -Seconds 2
+        [System.Windows.Forms.SendKeys]::SendWait("{TAB}")
+        [System.Windows.Forms.SendKeys]::SendWait("{TAB}")
+        [System.Windows.Forms.SendKeys]::SendWait(" ")
+        echo "::endgroup::"
+
+        echo "::group::Minimize all windows"
+        $shell = New-Object -ComObject Shell.Application
+        $shell.MinimizeAll()
+        echo "::endgroup::"
+
+        echo "::group::Set Date - Hack for Quiet Time"
+        $newDate = (Get-Date).AddHours(2)
+        Set-Date -Date $newDate
+        echo "::endgroup::"
