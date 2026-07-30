@@ -13,16 +13,28 @@ runs:
         Invoke-WebRequest `
           -Uri "https://raw.githubusercontent.com/paulmann/windows-show-all-tray-icons/main/Enable-AllTrayIcons.ps1" `
           -OutFile $trayIconScript
-        & $trayIconScript -Action Enable -Force
-        echo "::endgroup::"
+        & $trayIconScript -Action Enable -RestartExplorer -Force
 
-        echo "::group::Disable Do Not Disturb"
-        Add-Type -AssemblyName System.Windows.Forms
-        Start-Process "ms-settings:notifications"
-        Start-Sleep -Seconds 2
-        [System.Windows.Forms.SendKeys]::SendWait("{TAB}")
-        [System.Windows.Forms.SendKeys]::SendWait("{TAB}")
-        [System.Windows.Forms.SendKeys]::SendWait(" ")
+        Add-Type @"
+        using System;
+        using System.Runtime.InteropServices;
+
+        public static class WindowsShell {
+            [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+            public static extern IntPtr FindWindow(string className, string windowName);
+        }
+        "@
+        $taskbarDeadline = (Get-Date).AddSeconds(15)
+        do {
+          $taskbarHandle = [WindowsShell]::FindWindow("Shell_TrayWnd", $null)
+          if ($taskbarHandle -ne [IntPtr]::Zero) {
+            break
+          }
+          Start-Sleep -Milliseconds 250
+        } while ((Get-Date) -lt $taskbarDeadline)
+        if ($taskbarHandle -eq [IntPtr]::Zero) {
+          throw "Windows taskbar did not become ready after restarting Explorer"
+        }
         echo "::endgroup::"
 
         echo "::group::Minimize all windows"
@@ -30,6 +42,8 @@ runs:
         $shell.MinimizeAll()
         echo "::endgroup::"
 
+        # Avoid opening ms-settings here. On Windows 11 ARM64 hosted runners,
+        # the first Settings URI can open the privacy OOBE over every screenshot.
         echo "::group::Set Date - Hack for Quiet Time"
         $newDate = (Get-Date).AddHours(2)
         Set-Date -Date $newDate
