@@ -68,6 +68,24 @@ namespace {
     }
     return true;
   }
+
+  bool crop_to_bottom_right_quadrant(const std::filesystem::path &file) {
+    const QString imagePath = QString::fromUtf8(file.u8string().c_str());
+    const QImage image(imagePath);
+    if (image.isNull() || image.width() < 2 || image.height() < 2) {
+      std::cerr << "Screenshot dimensions invalid" << std::endl;
+      return false;
+    }
+
+    const int width = image.width() / 2;
+    const int height = image.height() / 2;
+    const QImage quadrant = image.copy(image.width() - width, image.height() - height, width, height);
+    if (!quadrant.save(imagePath, "PNG")) {
+      std::cerr << "Failed to crop " << file << std::endl;
+      return false;
+    }
+    return true;
+  }
 #endif
 
 #ifdef _WIN32
@@ -151,20 +169,20 @@ namespace screenshot {
     if (std::system("which import > /dev/null 2>&1") == 0) {
       std::string cmd = "import -window root " + target;
       if (std::system(cmd.c_str()) == 0) {
-        return capture_full_screen() || crop_to_top_right_quadrant(file);
+        return capture_full_screen() || crop_to_bottom_right_quadrant(file);
       }
     }
     if (std::system("which spectacle > /dev/null 2>&1") == 0) {
       std::string cmd = "spectacle -f -b -n -o " + target;
       if (std::system(cmd.c_str()) == 0) {
-        return capture_full_screen() || crop_to_top_right_quadrant(file);
+        return capture_full_screen() || crop_to_bottom_right_quadrant(file);
       }
     }
     std::string cmd = "gnome-screenshot -f " + target;
     if (std::system(cmd.c_str()) != 0) {
       return false;
     }
-    return capture_full_screen() || crop_to_top_right_quadrant(file);
+    return capture_full_screen() || crop_to_bottom_right_quadrant(file);
   }
 #endif
 

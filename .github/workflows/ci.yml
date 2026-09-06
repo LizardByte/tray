@@ -105,8 +105,6 @@ jobs:
       - name: Setup virtual desktop
         if: runner.os == 'Linux'
         uses: LizardByte/actions/actions/virtual_desktop@188c8ccad593e0f68bcf6aacb6bf84f10359d26f  # v2026.905.43751
-        with:
-          environment: mate
 
       - name: Setup Dependencies macOS
         if: runner.os == 'macOS'
