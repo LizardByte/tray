@@ -8,6 +8,23 @@ runs:
     - name: Configure Windows tray screenshots
       shell: pwsh
       run: |
+        echo "::group::Use dark Windows appearance"
+        $personalizeSettings = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+        New-Item -Path $personalizeSettings -Force | Out-Null
+        New-ItemProperty `
+          -Path $personalizeSettings `
+          -Name "AppsUseLightTheme" `
+          -PropertyType DWord `
+          -Value 0 `
+          -Force | Out-Null
+        New-ItemProperty `
+          -Path $personalizeSettings `
+          -Name "SystemUsesLightTheme" `
+          -PropertyType DWord `
+          -Value 0 `
+          -Force | Out-Null
+        echo "::endgroup::"
+
         echo "::group::Enable all tray icons"
         $trayIconScript = Join-Path $env:RUNNER_TEMP "Enable-AllTrayIcons.ps1"
         Invoke-WebRequest `

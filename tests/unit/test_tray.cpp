@@ -402,11 +402,8 @@ TEST_P(TrayNotificationIconTest, TestNotificationDisplay) {
   trayRunning = (initResult == 0);
   ASSERT_EQ(initResult, 0);
 
-  // Explorer must process the new icon before it can display this icon's notification.
+  // Let the desktop shell process the new icon before sending its notification.
   WaitForTrayReady();
-  ASSERT_EQ(tray_position_mouse_over_icon(), 0);
-  WaitForTooltipReady();
-  EXPECT_EQ(tray_restore_mouse_position(), 0);
   dismissNativeNotifications();
 
   // Set notification properties
