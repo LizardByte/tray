@@ -401,6 +401,9 @@ TEST_P(TrayNotificationIconTest, TestNotificationDisplay) {
   int initResult = tray_init(&testTray);
   trayRunning = (initResult == 0);
   ASSERT_EQ(initResult, 0);
+
+  // Let the desktop shell process the new icon before sending its notification.
+  WaitForTrayReady();
   dismissNativeNotifications();
 
   // Set notification properties

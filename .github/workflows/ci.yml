@@ -59,7 +59,9 @@ jobs:
           - os: ubuntu-latest
             shell: "bash"
             qt_version: '6'
-          - os: windows-latest
+          # Windows Server 2022 renders QSystemTrayIcon notifications. The newer
+          # windows-latest image suppresses them in its interactive session.
+          - os: windows-2022
             shell: "msys2 {0}"
             qt_version: '6'
     steps:
