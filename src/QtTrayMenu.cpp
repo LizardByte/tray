@@ -3,17 +3,24 @@
  * @brief Definitions for Qt tray menu implemenation
  */
 // standard includes
-#include <chrono>
 #include <filesystem>
-#include <thread>
 
 // qt includes
 #include <QApplication>
-#include <QCursor>
 #include <QDebug>
 #include <QMouseEvent>
-#include <QScreen>
 #include <QStyle>
+
+// conditional includes
+#ifdef TRAY_ENABLE_TEST_HOOKS
+  // standard
+  #include <chrono>
+  #include <thread>
+
+  // qt
+  #include <QCursor>
+  #include <QScreen>
+#endif
 
 // local includes
 #include "QtTrayMenu.h"
@@ -23,6 +30,7 @@
 #endif
 
 namespace {
+#ifdef TRAY_ENABLE_TEST_HOOKS
   constexpr int DEFAULT_PANEL_THICKNESS = 24;
   constexpr int CURSOR_POSITION_POLL_INTERVAL_MS = 10;
   constexpr int CURSOR_POSITION_TIMEOUT_MS = 500;
@@ -61,26 +69,27 @@ namespace {
     if (topInset > 0) {
       *position = QPoint(screenGeometry.right() - (topInset / 2), screenGeometry.top() + (topInset / 2));
     } else if (bottomInset > 0) {
-#if defined(__linux__)
+  #if defined(__linux__)
       // Plasma's default bottom panel places the system tray three quarters across the screen.
       // Its far-right control is Peek at Desktop, rather than a tray icon.
       *position = QPoint(screenGeometry.left() + ((screenGeometry.width() * 3) / 4), screenGeometry.bottom() - (bottomInset / 2));
-#else
+  #else
       *position = QPoint(screenGeometry.right() - (bottomInset / 2), screenGeometry.bottom() - (bottomInset / 2));
-#endif
+  #endif
     } else if (rightInset > 0) {
       *position = QPoint(screenGeometry.right() - (rightInset / 2), screenGeometry.bottom() - (rightInset / 2));
     } else if (leftInset > 0) {
       *position = QPoint(screenGeometry.left() + (leftInset / 2), screenGeometry.bottom() - (leftInset / 2));
     } else {
-#if defined(_WIN32)
+  #if defined(_WIN32)
       *position = QPoint(screenGeometry.right() - (DEFAULT_PANEL_THICKNESS / 2), screenGeometry.bottom() - (DEFAULT_PANEL_THICKNESS / 2));
-#else
+  #else
       *position = QPoint(screenGeometry.right() - (DEFAULT_PANEL_THICKNESS / 2), screenGeometry.top() + (DEFAULT_PANEL_THICKNESS / 2));
-#endif
+  #endif
     }
     return true;
   }
+#endif
 }  // namespace
 
 QtTrayMenu::QtTrayMenu(QObject *parent, const bool debug):
@@ -407,6 +416,7 @@ void QtTrayMenu::clearMessageCallback() const {
   notificationCallback = nullptr;
 }
 
+#ifdef TRAY_ENABLE_TEST_HOOKS
 bool QtTrayMenu::positionMouseOverIcon() {
   if (!trayIcon) {
     return false;
@@ -448,3 +458,4 @@ bool QtTrayMenu::restoreMousePosition() {
   }
   return restored;
 }
+#endif

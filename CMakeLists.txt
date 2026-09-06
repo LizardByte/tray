@@ -95,6 +95,9 @@ endif()
 add_library(${PROJECT_NAME} STATIC ${TRAY_SOURCES})
 set_property(TARGET ${PROJECT_NAME} PROPERTY C_STANDARD 99)
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 17)
+if(TRAY_IS_TOP_LEVEL AND BUILD_TESTS)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE TRAY_ENABLE_TEST_HOOKS)
+endif()
 target_include_directories(${PROJECT_NAME}
         PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
