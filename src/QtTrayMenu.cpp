@@ -61,7 +61,13 @@ namespace {
     if (topInset > 0) {
       *position = QPoint(screenGeometry.right() - (topInset / 2), screenGeometry.top() + (topInset / 2));
     } else if (bottomInset > 0) {
+#if defined(__linux__)
+      // Plasma's default bottom panel places the system tray three quarters across the screen.
+      // Its far-right control is Peek at Desktop, rather than a tray icon.
+      *position = QPoint(screenGeometry.left() + ((screenGeometry.width() * 3) / 4), screenGeometry.bottom() - (bottomInset / 2));
+#else
       *position = QPoint(screenGeometry.right() - (bottomInset / 2), screenGeometry.bottom() - (bottomInset / 2));
+#endif
     } else if (rightInset > 0) {
       *position = QPoint(screenGeometry.right() - (rightInset / 2), screenGeometry.bottom() - (rightInset / 2));
     } else if (leftInset > 0) {
