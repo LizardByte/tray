@@ -249,6 +249,14 @@ protected:
     }
   }
 
+  // Native tray tooltips are displayed asynchronously by the desktop shell.
+  void WaitForTooltipReady() const {
+    for (int i = 0; i < 40; ++i) {
+      tray_loop(0);
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+  }
+
   void WaitForNotificationReady() const {
     WaitForTrayReady();
 #if defined(_WIN32) || defined(__APPLE__)
@@ -478,10 +486,7 @@ TEST_F(TrayTest, TestTooltipDisplayOnHover) {
   WaitForTrayReady();
 
   ASSERT_EQ(tray_position_mouse_over_icon(), 0);
-  for (int i = 0; i < 20; ++i) {
-    tray_loop(0);
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-  }
+  WaitForTooltipReady();
   EXPECT_TRUE(captureScreenshot("tray_tooltip_hover"));
   EXPECT_EQ(tray_restore_mouse_position(), 0);
 }

@@ -70,6 +70,7 @@ extern "C" {
    */
   void tray_show_menu(void);
 
+#ifdef TRAY_ENABLE_TEST_HOOKS
   /**
    * @brief Position the mouse over the tray icon (for testing purposes).
    * @return 0 on success, -1 if the tray icon geometry is unavailable.
@@ -81,6 +82,7 @@ extern "C" {
    * @return 0 on success, -1 if no saved position exists or the cursor could not be restored.
    */
   int tray_restore_mouse_position(void);
+#endif
 
   /**
    * @brief Simulate a notification click, invoking the notification callback (for testing purposes).

@@ -221,6 +221,7 @@ extern "C" {
     tray_qt::state().trayMenu->showMenu();
   }
 
+#ifdef TRAY_ENABLE_TEST_HOOKS
   int tray_position_mouse_over_icon(void) {
     if (tray_qt::state().trayMenu == nullptr) {
       return -1;
@@ -234,6 +235,7 @@ extern "C" {
     }
     return tray_qt::state().trayMenu->restoreMousePosition() ? 0 : -1;
   }
+#endif
 
   void tray_simulate_menu_item_click(int index) {
     if (tray_qt::state().trayMenu == nullptr) {

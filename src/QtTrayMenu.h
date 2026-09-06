@@ -12,9 +12,13 @@
 // qt includes
 #include <QMenu>
 #include <QObject>
-#include <QPoint>
 #include <QString>
 #include <QSystemTrayIcon>
+
+// conditional includes
+#ifdef TRAY_ENABLE_TEST_HOOKS
+  #include <QPoint>
+#endif
 
 // local includes
 #include "tray.h"
@@ -111,6 +115,7 @@ public:
    */
   void clearMessageCallback() const;
 
+#ifdef TRAY_ENABLE_TEST_HOOKS
   /**
    * @brief Move the mouse cursor to the center of the tray icon.
    * @return true if the tray icon has valid screen geometry and the cursor was moved
@@ -122,6 +127,7 @@ public:
    * @return true if a saved position existed and the cursor was restored
    */
   bool restoreMousePosition();
+#endif
 
   /**
    * @brief Check if QtTrayMenu supports messages
@@ -163,8 +169,10 @@ private:
   bool blockingEventLoop = false;
   struct tray_menu *getTrayMenuItem(const QAction *action);
   mutable std::function<void()> notificationCallback = nullptr;
+#ifdef TRAY_ENABLE_TEST_HOOKS
   QPoint savedMousePosition;
   bool mousePositionSaved = false;
+#endif
 
 private slots:
   void onExitRequested();

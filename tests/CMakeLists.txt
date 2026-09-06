@@ -53,6 +53,7 @@ target_link_libraries(${PROJECT_NAME}
         gtest
         gtest_main  # if we use this we don't need our own main function
 )
+target_compile_definitions(${PROJECT_NAME} PRIVATE TRAY_ENABLE_TEST_HOOKS)
 target_compile_definitions(${PROJECT_NAME} PUBLIC ${TEST_DEFINITIONS})
 target_link_options(${PROJECT_NAME} PRIVATE)
 
