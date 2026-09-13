@@ -4,6 +4,7 @@
 
 // local includes
 #include "src/tray.h"
+#include "src/tray_qt.h"
 
 // standard includes
 #include <array>
@@ -49,6 +50,42 @@ namespace {
     log_callback_count()++;
   }
 }  // namespace
+
+TEST(TrayQtPlatformTest, PreservesExplicitPlatformSelection) {
+  EXPECT_EQ(
+    tray_qt::select_platform_plugins("offscreen", "wayland", "wayland-0", ":0"),
+    "offscreen"
+  );
+}
+
+TEST(TrayQtPlatformTest, UsesMinimalPlatformWithoutDesktopEnvironment) {
+  EXPECT_EQ(
+    tray_qt::select_platform_plugins({}, {}, {}, {}),
+    "minimal"
+  );
+}
+
+TEST(TrayQtPlatformTest, AddsMinimalFallbackForSingleDisplayProtocol) {
+  EXPECT_EQ(
+    tray_qt::select_platform_plugins({}, "wayland", "wayland-0", {}),
+    "wayland;minimal"
+  );
+  EXPECT_EQ(
+    tray_qt::select_platform_plugins({}, "x11", {}, ":0"),
+    "xcb;minimal"
+  );
+}
+
+TEST(TrayQtPlatformTest, PrefersSessionProtocolBeforeHeadlessFallback) {
+  EXPECT_EQ(
+    tray_qt::select_platform_plugins({}, "wayland", "wayland-0", ":0"),
+    "wayland;xcb;minimal"
+  );
+  EXPECT_EQ(
+    tray_qt::select_platform_plugins({}, "X11", "wayland-0", ":0"),
+    "xcb;wayland;minimal"
+  );
+}
 
 class TrayQtCoverageTest: public BaseTest {
 private:

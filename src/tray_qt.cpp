@@ -4,6 +4,8 @@
  */
 // standard includes
 #include <memory>
+#include <string>
+#include <string_view>
 
 // qt includes
 #include <QByteArray>
@@ -16,6 +18,7 @@
 // local includes
 #include "QtTrayMenu.h"
 #include "tray.h"
+#include "tray_qt.h"
 
 namespace tray_qt {
   /**
@@ -91,16 +94,54 @@ namespace tray_qt {
     current_state.trayMenu->configureAppMetadata(current_state.appName, current_state.appDisplayName, current_state.desktopName);
   }
 
+  std::string select_platform_plugins(
+    const std::string_view requested_platform,
+    const std::string_view session_type,
+    const std::string_view wayland_display,
+    const std::string_view x11_display
+  ) {
+    if (!requested_platform.empty()) {
+      return std::string {requested_platform};
+    }
+
+    std::string platforms;
+    const auto append_platform = [&platforms](const std::string_view platform) {
+      if (!platforms.empty()) {
+        platforms.push_back(';');
+      }
+      platforms.append(platform);
+    };
+    const bool prefer_x11 = session_type == "x11" || session_type == "X11";
+
+    if (prefer_x11 && !x11_display.empty()) {
+      append_platform("xcb");
+    }
+    if (!wayland_display.empty()) {
+      append_platform("wayland");
+    }
+    if (!prefer_x11 && !x11_display.empty()) {
+      append_platform("xcb");
+    }
+    append_platform("minimal");
+    return platforms;
+  }
+
   /**
-   * @brief Configure Linux headless fallback for Qt.
+   * @brief Configure Linux Qt platform candidates with a headless fallback.
    */
   void configure_platform() {
 #if defined(__linux__)
-    // Check if a (wayland_)display is set or fallback to minimal QPA platform
-    if (qgetenv("WAYLAND_DISPLAY").isEmpty() && qgetenv("DISPLAY").isEmpty()) {
-      // Force fallback to QT platform minimal if no (WAYLAND_)DISPLAY was found
-      qputenv("QT_QPA_PLATFORM", QByteArrayLiteral("minimal"));
-      qWarning("QtTrayMenu: no reachable WAYLAND_DISPLAY or DISPLAY endpoint, forcing QT_QPA_PLATFORM=minimal");
+    const auto requested_platform = qgetenv("QT_QPA_PLATFORM");
+    const auto platforms = select_platform_plugins(
+      requested_platform.toStdString(),
+      qgetenv("XDG_SESSION_TYPE").toStdString(),
+      qgetenv("WAYLAND_DISPLAY").toStdString(),
+      qgetenv("DISPLAY").toStdString()
+    );
+    if (requested_platform.isEmpty()) {
+      const auto qt_platforms = QByteArray::fromStdString(platforms);
+      qputenv("QT_QPA_PLATFORM", qt_platforms);
+      qDebug() << "QtTrayMenu: configured platform fallback chain:" << qt_platforms;
     }
 #endif
   }
