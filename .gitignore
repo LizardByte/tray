@@ -44,5 +44,6 @@
 build/
 cmake-*/
 
-# doxyconfig
-docs/doxyconfig*
+# Dockle
+/.dockle/
+/_site/
