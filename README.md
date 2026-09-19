@@ -36,26 +36,31 @@ This fork adds the following features:
 
 ## 🖼️ Screenshots
 
-<div class="tabbed">
-<ul>
-<li><b class="tab-title">Linux</b><br>
+<div class="dockle-tabs">
+
+<details open>
+<summary>Linux</summary>
 
 ![Linux tray menu](docs/images/tray_menu_left_click_linux.png)
 ![Linux notification](docs/images/tray_notification_svg_icon_linux.png)
 
-</li>
-<li><b class="tab-title">macOS</b><br>
+</details>
+
+<details>
+<summary>macOS</summary>
 
 ![macOS tray menu](docs/images/tray_menu_left_click_macos.png)
 
-</li>
-<li><b class="tab-title">Windows</b><br>
+</details>
+
+<details>
+<summary>Windows</summary>
 
 ![Windows tray menu](docs/images/tray_menu_left_click_windows.png)
 ![Windows notification](docs/images/tray_notification_svg_icon_windows.png)
 
-</li>
-</ul>
+</details>
+
 </div>
 
 ## 🖥️ Supported platforms
@@ -75,48 +80,68 @@ This fork adds the following features:
 
 Install either Qt6 _or_ Qt5.
 
-<div class="tabbed">
+<div class="dockle-tabs">
 
-- <b class="tab-title">Arch</b>
-    ```bash
-    # Qt6
-    sudo pacman -S qt6-base qt6-svg
+<details open>
+<summary>Arch</summary>
 
-    # Qt5
-    sudo pacman -S qt5-base qt5-svg
-    ```
+```bash
+# Qt6
+sudo pacman -S qt6-base qt6-svg
 
-- <b class="tab-title">Debian/Ubuntu</b>
-    ```bash
-    # Qt6
-    sudo apt install qt6-base-dev qt6-svg-dev
+# Qt5
+sudo pacman -S qt5-base qt5-svg
+```
 
-    # Qt5
-    sudo apt install qtbase5-dev libqt5svg5-dev
-    ```
+</details>
 
-- <b class="tab-title">Fedora</b>
-    ```bash
-    # Qt6
-    sudo dnf install qt6-qtbase-devel qt6-qtsvg-devel
+<details>
+<summary>Debian/Ubuntu</summary>
 
-    # Qt5
-    sudo dnf install qt5-qtbase-devel qt5-qtsvg-devel
-    ```
+```bash
+# Qt6
+sudo apt install qt6-base-dev qt6-svg-dev
 
-- <b class="tab-title">macOS</b>
-    ```bash
-    brew install cmake ninja qtbase qtsvg
-    ```
+# Qt5
+sudo apt install qtbase5-dev libqt5svg5-dev
+```
 
-- <b class="tab-title">Windows (MSYS2 UCRT64)</b>
-    ```bash
-    pacman -S mingw-w64-ucrt-x86_64-cmake \
-      mingw-w64-ucrt-x86_64-ninja \
-      mingw-w64-ucrt-x86_64-toolchain \
-      mingw-w64-ucrt-x86_64-qt6-base \
-      mingw-w64-ucrt-x86_64-qt6-svg
-    ```
+</details>
+
+<details>
+<summary>Fedora</summary>
+
+```bash
+# Qt6
+sudo dnf install qt6-qtbase-devel qt6-qtsvg-devel
+
+# Qt5
+sudo dnf install qt5-qtbase-devel qt5-qtsvg-devel
+```
+
+</details>
+
+<details>
+<summary>macOS</summary>
+
+```bash
+brew install cmake ninja qtbase qtsvg
+```
+
+</details>
+
+<details>
+<summary>Windows (MSYS2 UCRT64)</summary>
+
+```bash
+pacman -S mingw-w64-ucrt-x86_64-cmake \
+  mingw-w64-ucrt-x86_64-ninja \
+  mingw-w64-ucrt-x86_64-toolchain \
+  mingw-w64-ucrt-x86_64-qt6-base \
+  mingw-w64-ucrt-x86_64-qt6-svg
+```
+
+</details>
 
 </div>
 
@@ -205,8 +230,3 @@ array must have text field set to NULL.
 
 This software is distributed under [MIT license](http://www.opensource.org/licenses/mit-license.php),
 so feel free to integrate it in your commercial products.
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>

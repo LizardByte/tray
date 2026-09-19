@@ -1,0 +1,25 @@
+[project]
+name = "tray"
+version = "0.0.0"
+description = "Cross-platform implementation of a system tray icon with a popup menu and notifications."
+repository = "https://github.com/LizardByte/tray"
+logo = "tray.svg"
+favicon = "tray.svg"
+
+[build]
+output = "_site"
+work = ".dockle"
+strict = true
+clean = true
+
+[[targets]]
+name = "api"
+title = "tray documentation"
+framework = "doxygen"
+source = "."
+home = true
+
+[targets.doxygen]
+inputs = ["README.md", "src"]
+image_paths = ["docs/images"]
+main_page = "README.md"
