@@ -36,19 +36,32 @@ This fork adds the following features:
 
 ## 🖼️ Screenshots
 
-@tabs{
-@tab{Linux|:|
+<div class="dockle-tabs">
+
+<details open>
+<summary>Linux</summary>
+
 ![Linux tray menu](docs/images/tray_menu_left_click_linux.png)
 ![Linux notification](docs/images/tray_notification_svg_icon_linux.png)
-}
-@tab{macOS|:|
+
+</details>
+
+<details>
+<summary>macOS</summary>
+
 ![macOS tray menu](docs/images/tray_menu_left_click_macos.png)
-}
-@tab{Windows|:|
+
+</details>
+
+<details>
+<summary>Windows</summary>
+
 ![Windows tray menu](docs/images/tray_menu_left_click_windows.png)
 ![Windows notification](docs/images/tray_notification_svg_icon_windows.png)
-}
-}
+
+</details>
+
+</div>
 
 ## 🖥️ Supported platforms
 
@@ -67,39 +80,70 @@ This fork adds the following features:
 
 Install either Qt6 _or_ Qt5.
 
-@tabs{
-@tab{Arch|:|```bash
+<div class="dockle-tabs">
+
+<details open>
+<summary>Arch</summary>
+
+```bash
 # Qt6
 sudo pacman -S qt6-base qt6-svg
 
 # Qt5
 sudo pacman -S qt5-base qt5-svg
-```}
-@tab{Debian/Ubuntu|:|```bash
+```
+
+</details>
+
+<details>
+<summary>Debian/Ubuntu</summary>
+
+```bash
 # Qt6
 sudo apt install qt6-base-dev qt6-svg-dev
 
 # Qt5
 sudo apt install qtbase5-dev libqt5svg5-dev
-```}
-@tab{Fedora|:|```bash
+```
+
+</details>
+
+<details>
+<summary>Fedora</summary>
+
+```bash
 # Qt6
 sudo dnf install qt6-qtbase-devel qt6-qtsvg-devel
 
 # Qt5
 sudo dnf install qt5-qtbase-devel qt5-qtsvg-devel
-```}
-@tab{macOS|:|```bash
+```
+
+</details>
+
+<details>
+<summary>macOS</summary>
+
+```bash
 brew install cmake ninja qtbase qtsvg
-```}
-@tab{Windows (MSYS2 UCRT64)|:|```bash
+```
+
+</details>
+
+<details>
+<summary>Windows (MSYS2 UCRT64)</summary>
+
+```bash
 pacman -S mingw-w64-ucrt-x86_64-cmake \
   mingw-w64-ucrt-x86_64-ninja \
   mingw-w64-ucrt-x86_64-toolchain \
   mingw-w64-ucrt-x86_64-qt6-base \
   mingw-w64-ucrt-x86_64-qt6-svg
-```}
-}
+```
+
+</details>
+
+</div>
 
 ## 🛠️ Building
 
@@ -186,8 +230,3 @@ array must have text field set to NULL.
 
 This software is distributed under [MIT license](http://www.opensource.org/licenses/mit-license.php),
 so feel free to integrate it in your commercial products.
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>
