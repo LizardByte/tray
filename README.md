@@ -36,27 +36,19 @@ This fork adds the following features:
 
 ## 🖼️ Screenshots
 
-<div class="tabbed">
-<ul>
-<li><b class="tab-title">Linux</b><br>
-
+@tabs{
+@tab{Linux|:|
 ![Linux tray menu](docs/images/tray_menu_left_click_linux.png)
 ![Linux notification](docs/images/tray_notification_svg_icon_linux.png)
-
-</li>
-<li><b class="tab-title">macOS</b><br>
-
+}
+@tab{macOS|:|
 ![macOS tray menu](docs/images/tray_menu_left_click_macos.png)
-
-</li>
-<li><b class="tab-title">Windows</b><br>
-
+}
+@tab{Windows|:|
 ![Windows tray menu](docs/images/tray_menu_left_click_windows.png)
 ![Windows notification](docs/images/tray_notification_svg_icon_windows.png)
-
-</li>
-</ul>
-</div>
+}
+}
 
 ## 🖥️ Supported platforms
 
@@ -75,50 +67,39 @@ This fork adds the following features:
 
 Install either Qt6 _or_ Qt5.
 
-<div class="tabbed">
+@tabs{
+@tab{Arch|:|```bash
+# Qt6
+sudo pacman -S qt6-base qt6-svg
 
-- <b class="tab-title">Arch</b>
-    ```bash
-    # Qt6
-    sudo pacman -S qt6-base qt6-svg
+# Qt5
+sudo pacman -S qt5-base qt5-svg
+```}
+@tab{Debian/Ubuntu|:|```bash
+# Qt6
+sudo apt install qt6-base-dev qt6-svg-dev
 
-    # Qt5
-    sudo pacman -S qt5-base qt5-svg
-    ```
+# Qt5
+sudo apt install qtbase5-dev libqt5svg5-dev
+```}
+@tab{Fedora|:|```bash
+# Qt6
+sudo dnf install qt6-qtbase-devel qt6-qtsvg-devel
 
-- <b class="tab-title">Debian/Ubuntu</b>
-    ```bash
-    # Qt6
-    sudo apt install qt6-base-dev qt6-svg-dev
-
-    # Qt5
-    sudo apt install qtbase5-dev libqt5svg5-dev
-    ```
-
-- <b class="tab-title">Fedora</b>
-    ```bash
-    # Qt6
-    sudo dnf install qt6-qtbase-devel qt6-qtsvg-devel
-
-    # Qt5
-    sudo dnf install qt5-qtbase-devel qt5-qtsvg-devel
-    ```
-
-- <b class="tab-title">macOS</b>
-    ```bash
-    brew install cmake ninja qtbase qtsvg
-    ```
-
-- <b class="tab-title">Windows (MSYS2 UCRT64)</b>
-    ```bash
-    pacman -S mingw-w64-ucrt-x86_64-cmake \
-      mingw-w64-ucrt-x86_64-ninja \
-      mingw-w64-ucrt-x86_64-toolchain \
-      mingw-w64-ucrt-x86_64-qt6-base \
-      mingw-w64-ucrt-x86_64-qt6-svg
-    ```
-
-</div>
+# Qt5
+sudo dnf install qt5-qtbase-devel qt5-qtsvg-devel
+```}
+@tab{macOS|:|```bash
+brew install cmake ninja qtbase qtsvg
+```}
+@tab{Windows (MSYS2 UCRT64)|:|```bash
+pacman -S mingw-w64-ucrt-x86_64-cmake \
+  mingw-w64-ucrt-x86_64-ninja \
+  mingw-w64-ucrt-x86_64-toolchain \
+  mingw-w64-ucrt-x86_64-qt6-base \
+  mingw-w64-ucrt-x86_64-qt6-svg
+```}
+}
 
 ## 🛠️ Building
 
