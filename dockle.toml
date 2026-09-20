@@ -22,4 +22,11 @@ home = true
 [targets.doxygen]
 inputs = ["README.md", "src"]
 image_paths = ["docs/images"]
+extra_stylesheets = [
+  "https://cdn.jsdelivr.net/npm/@lizardbyte/shared-web@2026.920.12131/dist/crowdin-dockle-css.css",
+]
+extra_javascript = [
+  "https://cdn.jsdelivr.net/npm/@lizardbyte/shared-web@2026.920.12131/dist/crowdin.js",
+  "docs/crowdin.js",
+]
 main_page = "README.md"
