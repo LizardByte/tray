@@ -27,8 +27,11 @@ runs:
 
         echo "::group::Enable all tray icons"
         $trayIconScript = Join-Path $env:RUNNER_TEMP "Enable-AllTrayIcons.ps1"
+        # Upstream removed the legacy PowerShell script from main; keep using v6.2.
+        $trayIconScriptUrl = "https://raw.githubusercontent.com/paulmann/windows-show-all-tray-icons/" +
+          "e478e4f30b776822799c4d460a407a09ca31ca99/Enable-AllTrayIcons.ps1"
         Invoke-WebRequest `
-          -Uri "https://raw.githubusercontent.com/paulmann/windows-show-all-tray-icons/main/Enable-AllTrayIcons.ps1" `
+          -Uri $trayIconScriptUrl `
           -OutFile $trayIconScript
         & $trayIconScript -Action Enable -RestartExplorer -Force
 
