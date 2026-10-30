@@ -34,7 +34,7 @@ jobs:
 
       - name: Setup Release
         id: setup_release
-        uses: LizardByte/actions/actions/release_setup@28374bf43cc8b6ee88b9b8a3419b2ac7a6573906  # v2026.928.123224
+        uses: LizardByte/actions/actions/release_setup@0528b495e6af82b4d698ec6c907a9b1842622068  # v2026.1029.234422
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -106,7 +106,7 @@ jobs:
 
       - name: Setup virtual desktop
         if: runner.os == 'Linux'
-        uses: LizardByte/actions/actions/virtual_desktop@28374bf43cc8b6ee88b9b8a3419b2ac7a6573906  # v2026.928.123224
+        uses: LizardByte/actions/actions/virtual_desktop@0528b495e6af82b4d698ec6c907a9b1842622068  # v2026.1029.234422
 
       - name: Setup Dependencies macOS
         if: runner.os == 'macOS'
@@ -288,7 +288,7 @@ jobs:
     steps:
       - name: Create/Update GitHub Release
         if: needs.setup_release.outputs.publish_release == 'true'
-        uses: LizardByte/actions/actions/release_create@28374bf43cc8b6ee88b9b8a3419b2ac7a6573906  # v2026.928.123224
+        uses: LizardByte/actions/actions/release_create@0528b495e6af82b4d698ec6c907a9b1842622068  # v2026.1029.234422
         with:
           allowUpdates: false
           artifacts: ''
