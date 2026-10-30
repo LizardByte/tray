@@ -15,16 +15,16 @@ runs:
 
         configure_system_tccdb() {
           local values=$1
-          local dbPath="/Library/Application Support/com.apple.TCC/TCC.db"
-          local sqlQuery="INSERT OR IGNORE INTO access VALUES($values);"
-          sudo sqlite3 -cmd ".timeout 30000" "$dbPath" "$sqlQuery"
+          local db_path="/Library/Application Support/com.apple.TCC/TCC.db"
+          local sql_query="INSERT OR IGNORE INTO access VALUES($values);"
+          sudo sqlite3 -cmd ".timeout 30000" "$db_path" "$sql_query"
         }
 
         configure_user_tccdb() {
           local values=$1
-          local dbPath="$HOME/Library/Application Support/com.apple.TCC/TCC.db"
-          local sqlQuery="INSERT OR IGNORE INTO access VALUES($values);"
-          sqlite3 -cmd ".timeout 30000" "$dbPath" "$sqlQuery"
+          local db_path="$HOME/Library/Application Support/com.apple.TCC/TCC.db"
+          local sql_query="INSERT OR IGNORE INTO access VALUES($values);"
+          sqlite3 -cmd ".timeout 30000" "$db_path" "$sql_query"
         }
 
         systemValuesArray=(
