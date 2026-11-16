@@ -273,6 +273,11 @@ QIcon QtTrayMenu::lookupIcon(QString icon) const {
   // Find icon for tray
   if (std::filesystem::exists(icon.toStdString())) {
     if (auto result = QIcon(icon); !result.isNull()) {
+#if defined(__APPLE__)
+      if (icon.section('/', -1).startsWith("macos-tray-")) {
+        result.setIsMask(true);
+      }
+#endif
       return result;
     }
   }
