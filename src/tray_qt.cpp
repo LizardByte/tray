@@ -186,6 +186,10 @@ extern "C" {
   }
 
   int tray_init(struct tray *tray) {
+    return tray_init_with_options(tray, 0);
+  }
+
+  int tray_init_with_options(struct tray *tray, const unsigned int options) {
     auto &state = tray_qt::state();
     if (state.trayMenu == nullptr) {
       tray_qt::configure_platform();
@@ -194,7 +198,7 @@ extern "C" {
       tray_qt::apply_app_info(false);
     }
 
-    if (const auto result = state.trayMenu->init(tray, false); result < 0) {
+    if (const auto result = state.trayMenu->init(tray, false, options); result < 0) {
       // Tray init failed. Clean up and return error.
       tray_exit();
       return result;
@@ -263,6 +267,11 @@ extern "C" {
   }
 
 #ifdef TRAY_ENABLE_TEST_HOOKS
+  int tray_icon_is_template(void) {
+    const auto &tray_menu = tray_qt::state().trayMenu;
+    return tray_menu != nullptr ? tray_menu->iconIsTemplate() : -1;
+  }
+
   int tray_position_mouse_over_icon(void) {
     if (tray_qt::state().trayMenu == nullptr) {
       return -1;

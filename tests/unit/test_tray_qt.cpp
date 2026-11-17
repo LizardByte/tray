@@ -2,10 +2,6 @@
 #include "tests/conftest.cpp"
 #include "tests/notification_utils.h"
 
-// local includes
-#include "src/tray.h"
-#include "src/tray_qt.h"
-
 // standard includes
 #include <array>
 #include <atomic>
@@ -16,6 +12,10 @@
 #include <optional>
 #include <thread>
 #include <vector>
+
+// local includes
+#include "src/tray.h"
+#include "src/tray_qt.h"
 
 #if defined(_WIN32)
   // local includes
@@ -142,8 +142,12 @@ protected:
     BaseTest::TearDown();
   }
 
-  void InitTray() {
-    const int initResult = tray_init(trayData);
+  /**
+   * @brief Start the tray, optionally requesting non-default rendering behavior.
+   * @param options Options passed to the tray API.
+   */
+  void InitTray(const unsigned int options = 0) {
+    const int initResult = options == 0 ? tray_init(trayData) : tray_init_with_options(trayData, options);
     trayRunning = (initResult == 0);
     ASSERT_EQ(initResult, 0);
   }
@@ -154,6 +158,32 @@ protected:
     }
   }
 };
+
+/**
+ * @brief Verify that the default tray API preserves regular artwork.
+ */
+TEST_F(TrayQtCoverageTest, TrayIconUsesRegularRenderingByDefault) {
+  EXPECT_EQ(tray_icon_is_template(), -1);
+  InitTray();
+  EXPECT_EQ(tray_icon_is_template(), 0);
+}
+
+/**
+ * @brief Verify that the template rendering request follows tray icon updates on macOS.
+ */
+TEST_F(TrayQtCoverageTest, TrayIconTemplateOptionAppliesToInitialAndUpdatedIcons) {
+  InitTray(TRAY_OPTION_TEMPLATE_ICON);
+#ifdef __APPLE__
+  constexpr int expected_template = 1;
+#else
+  constexpr int expected_template = 0;
+#endif
+  EXPECT_EQ(tray_icon_is_template(), expected_template);
+
+  trayData->icon = "icon2.png";
+  tray_update(trayData);
+  EXPECT_EQ(tray_icon_is_template(), expected_template);
+}
 
 #if defined(_WIN32)
 TEST(WindowsAppearanceTest, AppsUseLightThemeMapsToColorScheme) {

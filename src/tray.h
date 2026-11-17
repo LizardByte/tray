@@ -53,6 +53,24 @@ extern "C" {
   int tray_init(struct tray *tray);
 
   /**
+   * @brief Optional rendering behavior for the tray icon.
+   */
+  enum tray_option {
+    TRAY_OPTION_TEMPLATE_ICON = 1 << 0,  ///< Render file-backed macOS menu bar icons as template images.
+  };
+
+  /**
+   * @brief Create a tray icon with the requested options.
+   *
+   * Options apply to the tray icon at initialization and on subsequent updates.
+   * The template icon option applies only to the macOS menu bar.
+   * @param tray The tray to initialize.
+   * @param options Bitmask of tray_option values, or zero for default behavior.
+   * @return 0 on success, -1 on error.
+   */
+  int tray_init_with_options(struct tray *tray, unsigned int options);
+
+  /**
    * @brief Run one iteration of the UI loop.
    * @param blocking Whether to block the call or not.
    * @return 0 on success, -1 if tray_exit() was called.
@@ -71,6 +89,12 @@ extern "C" {
   void tray_show_menu(void);
 
 #ifdef TRAY_ENABLE_TEST_HOOKS
+  /**
+   * @brief Check whether the active tray icon is marked as a template image (for testing purposes).
+   * @return 1 for a template icon, 0 for a regular icon, or -1 when no icon is active.
+   */
+  int tray_icon_is_template(void);
+
   /**
    * @brief Position the mouse over the tray icon (for testing purposes).
    * @return 0 on success, -1 if the tray icon geometry is unavailable.
