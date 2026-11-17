@@ -122,7 +122,7 @@ QtTrayMenu::QtTrayMenu(int argc, char **argv, QObject *parent, const bool debug)
 
 QtTrayMenu::~QtTrayMenu() = default;
 
-int QtTrayMenu::init(struct tray *tray, const bool notification) {
+int QtTrayMenu::init(struct tray *tray, const bool notification, [[maybe_unused]] const unsigned int options) {
   if (trayIcon) {
     // Running tray is initialized again. Fail with error.
     return -1;
@@ -139,8 +139,10 @@ int QtTrayMenu::init(struct tray *tray, const bool notification) {
     QApplication::setApplicationName(tray->tooltip);
   }
 
-  // Create tray icon
-  trayIcon = std::make_unique<QSystemTrayIcon>(lookupIcon(tray->icon));
+#ifdef __APPLE__
+  useTemplateIcon = (options & TRAY_OPTION_TEMPLATE_ICON) != 0;
+#endif
+  trayIcon = std::make_unique<QSystemTrayIcon>(lookupIcon(tray->icon, useTemplateIcon));
   trayIcon->setToolTip(QString::fromUtf8(tray->tooltip));
 
   connect(trayIcon.get(), &QSystemTrayIcon::activated, this, &QtTrayMenu::onTrayActivated);
@@ -166,7 +168,7 @@ void QtTrayMenu::onUpdate(struct tray *tray, const bool notify) {
     return;
   }
   this->trayStruct = tray;
-  if (const auto newIcon = lookupIcon(trayStruct->icon); !newIcon.isNull()) {
+  if (const auto newIcon = lookupIcon(trayStruct->icon, useTemplateIcon); !newIcon.isNull()) {
     trayIcon->setIcon(newIcon);
   }
   trayIcon->setToolTip(QString::fromUtf8(trayStruct->tooltip));
@@ -269,10 +271,13 @@ void QtTrayMenu::createNotification() {
   }
 }
 
-QIcon QtTrayMenu::lookupIcon(QString icon) const {
+QIcon QtTrayMenu::lookupIcon(QString icon, const bool useTemplate) const {
   // Find icon for tray
   if (std::filesystem::exists(icon.toStdString())) {
     if (auto result = QIcon(icon); !result.isNull()) {
+      if (useTemplate) {
+        result.setIsMask(true);
+      }
       return result;
     }
   }
@@ -417,6 +422,10 @@ void QtTrayMenu::clearMessageCallback() const {
 }
 
 #ifdef TRAY_ENABLE_TEST_HOOKS
+int QtTrayMenu::iconIsTemplate() const {
+  return trayIcon ? static_cast<int>(trayIcon->icon().isMask()) : -1;
+}
+
 bool QtTrayMenu::positionMouseOverIcon() {
   if (!trayIcon) {
     return false;

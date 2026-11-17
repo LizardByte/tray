@@ -60,9 +60,10 @@ public:
    * @brief Initialize tray with given structure
    * @param tray struct containing tray configuration
    * @param notification fire tray notification if true
+   * @param options Rendering options for the tray icon
    * @return 0 on success
    */
-  int init(struct tray *tray, bool notification = true);
+  int init(struct tray *tray, bool notification = true, unsigned int options = 0);
 
   /**
    * @brief Process tray loop events
@@ -117,6 +118,12 @@ public:
 
 #ifdef TRAY_ENABLE_TEST_HOOKS
   /**
+   * @brief Check whether the active tray icon is marked as a template image.
+   * @return 1 for a template icon, 0 for a regular icon, or -1 when no icon is active.
+   */
+  int iconIsTemplate() const;
+
+  /**
    * @brief Move the mouse cursor to the center of the tray icon.
    * @return true if the tray icon has valid screen geometry and the cursor was moved
    */
@@ -157,7 +164,13 @@ private:
   void createMenu(struct tray_menu *items, QMenu *menu);
   void createNotification();
   void updateMenu(struct tray_menu *items);
-  QIcon lookupIcon(QString icon) const;
+  /**
+   * @brief Find artwork for the tray or a notification.
+   * @param icon Icon path or theme name.
+   * @param useTemplate Whether to mark file-backed artwork as a template image.
+   * @return The requested icon or a fallback icon.
+   */
+  QIcon lookupIcon(QString icon, bool useTemplate = false) const;
   int defaultArgc = 1;
   std::array<char, 12> defaultArgv0 {'T', 'r', 'a', 'y', 'M', 'e', 'n', 'u', 'A', 'p', 'p', '\0'};
   std::array<char *, 2> defaultArgv {defaultArgv0.data(), nullptr};
@@ -167,6 +180,7 @@ private:
   struct tray *trayStruct = nullptr;
   bool running = false;
   bool blockingEventLoop = false;
+  bool useTemplateIcon = false;  ///< Whether the macOS menu bar icon uses template rendering.
   struct tray_menu *getTrayMenuItem(const QAction *action);
   mutable std::function<void()> notificationCallback = nullptr;
 #ifdef TRAY_ENABLE_TEST_HOOKS
